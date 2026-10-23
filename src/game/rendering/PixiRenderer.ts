@@ -13,7 +13,10 @@ export class PixiRenderer {
   private app = new Application();
   private world = new Container();
   private dolphin = new Container();
+  private dolphinBody = new Container();
   private tail = new Graphics();
+  private leftFin = new Graphics();
+  private rightFin = new Graphics();
   private hitPoint = new Graphics();
   private muzzle = new Graphics();
   private ripples = new Graphics();
@@ -90,7 +93,6 @@ export class PixiRenderer {
     this.ripples.ellipse(0, 4, 30, 16).fill({ color: 0x6ce4db, alpha: 0.035 });
     this.ripples.ellipse(0, 4, 23, 11).stroke({ color: 0x6ce4db, alpha: 0.12, width: 1 });
     this.world.addChild(this.ripples);
-    const body = new Container();
     // Dorsal view, facing up: paired pectoral fins, a dorsal fin and horizontal flukes.
     // The white belly stays underneath; the visible surface is the dolphin's back.
     this.tail
@@ -101,12 +103,20 @@ export class PixiRenderer {
       .moveTo(-10, 5).quadraticCurveTo(-4, 3, 0, 3).quadraticCurveTo(4, 3, 10, 5)
       .stroke({ color: 0x9be0e9, width: 0.7, alpha: 0.5 });
     this.tail.position.set(0, 13);
-    body.addChild(this.tail);
+    this.dolphinBody.addChild(this.tail);
+    this.leftFin.moveTo(0, 0).quadraticCurveTo(-8, 3, -12, 10)
+      .quadraticCurveTo(-12, 13, -6, 10).lineTo(1, 7).fill(0x48abc8)
+      .moveTo(-3, 4).quadraticCurveTo(-8, 8, -10, 10)
+      .stroke({ color: 0x9fe5e8, width: 0.8, alpha: 0.55 });
+    this.leftFin.position.set(-6, -3);
+    this.rightFin.moveTo(0, 0).quadraticCurveTo(-8, 3, -12, 10)
+      .quadraticCurveTo(-12, 13, -6, 10).lineTo(1, 7).fill(0x48abc8)
+      .moveTo(-3, 4).quadraticCurveTo(-8, 8, -10, 10)
+      .stroke({ color: 0x9fe5e8, width: 0.8, alpha: 0.55 });
+    this.rightFin.position.set(6, -3);
+    this.rightFin.scale.x = -1;
+    this.dolphinBody.addChild(this.leftFin, this.rightFin);
     const outline = new Graphics()
-      .moveTo(-6, -3).quadraticCurveTo(-14, 0, -18, 7)
-      .quadraticCurveTo(-18, 10, -12, 7).lineTo(-5, 4).fill(0x48abc8)
-      .moveTo(6, -3).quadraticCurveTo(14, 0, 18, 7)
-      .quadraticCurveTo(18, 10, 12, 7).lineTo(5, 4).fill(0x48abc8)
       .moveTo(0, -18).bezierCurveTo(-10, -18, -12, -7, -8, 3)
       .quadraticCurveTo(-5, 11, -3, 16).lineTo(3, 16)
       .quadraticCurveTo(5, 11, 8, 3).bezierCurveTo(12, -7, 10, -18, 0, -18).fill(0x7bd5e8)
@@ -123,8 +133,8 @@ export class PixiRenderer {
       .ellipse(7, -11.5, 1, 1.5).fill(0x123e50)
       .circle(-7.2, -12, 0.4).fill(0xe9fffa)
       .circle(7.2, -12, 0.4).fill(0xe9fffa);
-    body.addChild(outline);
-    this.dolphin.addChild(body);
+    this.dolphinBody.addChild(outline);
+    this.dolphin.addChild(this.dolphinBody);
     this.world.addChild(this.dolphin);
     this.hitPoint.circle(0, 0, GAME_CONFIG.player.hitRadius + 2).fill(0x083d4e)
       .circle(0, 0, GAME_CONFIG.player.hitRadius).fill(0xf5f0cc)
@@ -132,7 +142,6 @@ export class PixiRenderer {
     this.world.addChild(this.hitPoint);
     this.shield.circle(0, 0, 26).stroke({ color: 0xb7ede4, width: 1, alpha: 0.55 });
     this.world.addChild(this.shield);
-    this.muzzle.star(0, 0, 4, 10, 2).fill({ color: 0xe2ffdf, alpha: 0.9 });
     this.world.addChild(this.muzzle);
   }
 
@@ -154,12 +163,20 @@ export class PixiRenderer {
 
   private createBullet(mode: ShotMode): Container {
     const root = new Container();
-    const color = mode === 'homing' ? 0xf0dca3 : 0x92f2dd;
-    root.addChild(new Graphics()
-      .ellipse(-5, 0, 17, 7).fill({ color, alpha: 0.055 })
-      .ellipse(-4, 0, 10, 3).fill({ color, alpha: 0.45 })
-      .ellipse(0, 0, 6, 2.2).fill(color)
-      .ellipse(1.5, 0, 3.7, 1).fill(0xf2ffef));
+    const graphic = new Graphics();
+    if (mode === 'homing') {
+      graphic.ellipse(-7, 0, 14, 7).fill({ color: 0xf4c987, alpha: 0.08 })
+        .moveTo(-15, -3).quadraticCurveTo(-6, -5, -1, -1).stroke({ color: 0xffd99b, width: 1.2, alpha: 0.6 })
+        .moveTo(-15, 3).quadraticCurveTo(-6, 5, -1, 1).stroke({ color: 0xffd99b, width: 1.2, alpha: 0.6 })
+        .circle(0, 0, 4).fill(0xeec788).circle(1, -1, 2).fill(0xfffae1);
+    } else {
+      graphic.ellipse(-8, 0, 20, 6).fill({ color: 0x8deedc, alpha: 0.06 })
+        .moveTo(-22, 0).lineTo(-2, 0).stroke({ color: 0x8deedc, width: 3, alpha: 0.3 })
+        .ellipse(-3, 0, 10, 2.6).fill({ color: 0x9cf6de, alpha: 0.7 })
+        .ellipse(1, 0, 5.5, 2).fill(0xc5ffea)
+        .circle(3, 0, 1.5).fill(0xffffff);
+    }
+    root.addChild(graphic);
     this.world.addChild(root);
     return root;
   }
@@ -182,16 +199,30 @@ export class PixiRenderer {
     this.dolphin.alpha = pose.opacity;
     this.shield.position.set(position.x, position.y);
     this.shield.visible = !state.gameOver && player.invulnerableFor > 0;
-    this.tail.rotation = Math.sin(t * (player.slow ? 5 : 9)) * 0.035;
-    this.tail.scale.y = 0.8 + Math.sin(t * (player.slow ? 5 : 9)) * 0.2;
+    const swim = t * (player.slow ? 4.5 : 9);
+    const motion = Math.min(1, Math.hypot(player.velocity.x, player.velocity.y) / GAME_CONFIG.player.speed);
+    this.dolphinBody.position.y = Math.sin(swim) * (0.5 + motion * 0.65);
+    this.dolphinBody.scale.y = 1 + Math.sin(swim) * 0.025;
+    this.tail.rotation = Math.sin(swim) * (player.slow ? 0.055 : 0.11);
+    this.tail.scale.y = 0.82 + Math.sin(swim) * (player.slow ? 0.13 : 0.2);
+    this.leftFin.rotation = Math.sin(swim - 0.7) * (player.slow ? 0.055 : 0.11);
+    this.rightFin.rotation = -this.leftFin.rotation;
     this.ripples.position.set(position.x, position.y);
     this.ripples.visible = !state.gameOver;
     this.ripples.scale.set(1 + Math.sin(t * 3) * 0.08);
     this.hitPoint.position.set(position.x, position.y);
     this.hitPoint.visible = !state.gameOver;
     this.muzzle.position.set(position.x, position.y - GAME_CONFIG.shot.muzzleOffset);
-    this.muzzle.alpha = player.muzzleFlash / 0.075;
-    this.muzzle.scale.set(0.65 + player.muzzleFlash * 5);
+    this.muzzle.alpha = Math.min(1, player.muzzleFlash / 0.075);
+    this.muzzle.scale.set(0.7 + player.muzzleFlash * 6);
+    this.muzzle.clear();
+    if (player.muzzleFlash > 0) {
+      const homing = player.slow;
+      const color = homing ? 0xf8dfaa : 0xb4ffe4;
+      this.muzzle.circle(0, 0, homing ? 12 : 9).stroke({ color, width: 1.5, alpha: 0.8 })
+        .star(0, 0, homing ? 5 : 4, homing ? 9 : 13, 2).fill({ color, alpha: 0.85 })
+        .circle(0, 0, 3).fill(0xffffff);
+    }
 
     const targetIds = new Set(state.targets.map((target) => target.id));
     for (const [id, visual] of this.targets) {

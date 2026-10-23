@@ -75,6 +75,17 @@ h1, h2, h3, p { margin: 0; }
 .status-box.damaged { border-color: #d9958a70; }
 .status-box.damaged > span:last-child { color: #edb7a6; }
 .status-box.damaged i { background: #edb7a6; }
+.info-panel[data-state="hit"] .status-box { background: #74474966; box-shadow: 0 0 22px #ecb6a229; }
+.info-panel[data-state="hit"] .hp-segments span:not(.empty) { background: #f2c0a9; }
+.info-panel[data-state="down"] .status-box { background: #69465355; border-color: #d3999a7d; }
+.info-panel[data-state="clear"] .status-box { background: #5b573466; border-color: #cfcb8c77; }
+.info-panel[data-state="clear"] .status-box > span:last-child { color: #eee2aa; }
+.info-panel[data-state="clear"] .status-box i { background: #eee2aa; }
+.info-panel[data-state="arrival"] .free-swim, .info-panel[data-state="boss"] .free-swim { color: #e1bdbd; }
+.info-panel[data-state="arrival"] .free-swim .live-dot, .info-panel[data-state="boss"] .free-swim .live-dot { background: #e3b0b8; box-shadow: 0 0 10px #edb4b477; }
+.info-panel[data-state="boss"] .stage-progress > span { background: #d6a9b3; }
+.info-panel[data-state="clear"] .free-swim { color: #e9dfab; }
+.info-panel[data-state="clear"] .stage-progress > span { background: #d8d09b; }
 .best-score { display: flex; align-items: center; justify-content: space-between; margin-top: 17px; }
 .best-score > span:last-child { color: #6b8a96; font-size: 16px; }
 .controls-guide { margin-top: auto; padding-top: 20px; }
@@ -138,6 +149,9 @@ kbd { display: inline-flex; align-items: center; justify-content: center; font: 
 .panel-bottom-note { display: flex; align-items: center; gap: 7px; border-top: 1px solid #42606a45; margin-top: 14px; padding-top: 13px; font-size: 7px; letter-spacing: 1.8px; color: #668e91; }
 .panel-bottom-note .live-dot { width: 3px; height: 3px; background: #699c8e; }
 .play-field { position: relative; width: 720px; height: 720px; background: #092c3c; overflow: hidden; }
+.play-field.hit-state::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 7; box-shadow: inset 0 0 105px 30px #f5c9b05e; animation: field-hit .3s ease-out both; }
+@keyframes field-hit { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .play-field.hit-state::after { animation: none; opacity: .45; } }
 .canvas-host, .canvas-host canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
 .field-top, .field-bottom { position: absolute; left: 24px; right: 24px; display: flex; align-items: center; justify-content: space-between; pointer-events: none; z-index: 2; }
 .field-top { top: 25px; font-size: 8px; letter-spacing: 2px; color: #75a7ae; }

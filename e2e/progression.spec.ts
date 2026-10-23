@@ -18,6 +18,8 @@ test('title and stage selection work with keyboard, pause returns to selection, 
   await expect(page.getByRole('dialog', { name: 'ステージ選択' })).not.toBeVisible();
   await expect(page.getByRole('progressbar', { name: 'ステージ進行率' })).toBeVisible();
   await expect(page.locator('.info-panel')).toHaveCount(2);
+  await expect(page.locator('.boss-card')).toHaveCount(0);
+  await expect(page.locator('.right-panel')).toHaveAttribute('data-state', 'normal');
   await expect(page.getByRole('switch', { name: '敵の攻撃', exact: true })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'ポーズ中' })).toBeVisible();
@@ -42,12 +44,19 @@ test('play a full stage through both boss phases and persist the clear result', 
     let simulatedX = 360;
     let simulatedY = 550;
     let lastDirection = { x: 0, y: 0 };
+    let lastHudPosition = '';
     Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => {
       const playing = !document.querySelector('[aria-label="タイトル"], [aria-label="ステージ選択"]');
       if (playing && started === null) { started = performance.now(); lastTime = started; }
       const elapsed = started === null ? 0 : (performance.now() - started) / 1000;
       const active = playing && elapsed > 0.1;
       if (active) {
+        const hudPosition = document.querySelector('.field-bottom > span')?.textContent ?? '';
+        if (hudPosition !== lastHudPosition) {
+          const match = hudPosition.match(/X\s*(\d+)\s*\/\s*Y\s*(\d+)/);
+          if (match) { simulatedX = Number(match[1]); simulatedY = Number(match[2]); }
+          lastHudPosition = hudPosition;
+        }
         const dt = (performance.now() - lastTime) / 1000;
         simulatedX += lastDirection.x * 120 * dt;
         simulatedY += lastDirection.y * 120 * dt;
@@ -76,13 +85,16 @@ test('play a full stage through both boss phases and persist the clear result', 
     if (await page.getByRole('dialog', { name: 'リザルト' }).isVisible()) break;
     const arrival = page.getByRole('status', { name: 'ボス登場演出' });
     if (!sawArrival && await arrival.isVisible() && await arrival.evaluate((el) => Number(getComputedStyle(el).opacity) > 0.5)) {
-      sawArrival = true; await page.screenshot({ path: 'artifacts/blue-current-boss-arrival.png' });
+      sawArrival = true;
+      await expect(page.locator('.right-panel')).toHaveAttribute('data-state', 'arrival');
+      await expect(page.locator('.boss-card')).toHaveCount(1);
+      await page.screenshot({ path: 'artifacts/blue-current-boss-arrival.png' });
     }
     const collection = page.getByRole('status', { name: 'フェーズ切替' });
     if (!sawCollection && await collection.isVisible()) {
       sawCollection = true; await page.screenshot({ path: 'artifacts/blue-current-phase-collection.png' });
     }
-    const bossText = await page.locator('.boss-card').innerText();
+    const bossText = await page.locator('.boss-card').count() ? await page.locator('.boss-card').innerText() : '';
     if (!sawBoss && bossText.includes('PHASE 1/2')) { sawBoss = true; await page.screenshot({ path: 'artifacts/blue-current-boss.png' }); }
     if (!sawSecondPhase && bossText.includes('PHASE 2/2')) { sawSecondPhase = true; await page.screenshot({ path: 'artifacts/blue-current-boss-phase2.png' }); }
     if (!sawLaser && bossText.includes('レーザー')) { sawLaser = true; await page.screenshot({ path: 'artifacts/blue-current-boss-laser.png' }); }
@@ -93,6 +105,7 @@ test('play a full stage through both boss phases and persist the clear result', 
     }
     if (!sawClear && await clear.isVisible()) {
       sawClear = true;
+      await expect(page.locator('.right-panel')).toHaveAttribute('data-state', 'clear');
       await expect(page.getByRole('dialog', { name: 'リザルト' })).not.toBeVisible();
       await page.clock.runFor(850);
       expect(await clear.evaluate((el) => Number(getComputedStyle(el).opacity))).toBeGreaterThan(0.9);

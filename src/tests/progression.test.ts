@@ -13,6 +13,16 @@ import { RecordStore, readRecords, SAVE_KEY, type RecordStorage } from '../game/
 const step = 1 / 60;
 let id = 0;
 const nextId = () => `stage-test-${++id}`;
+
+it('raises the final boss phase challenge while keeping its warning readable', () => {
+  const [opening, finale] = stageOne.progression.boss.phases;
+  const openingFan = opening.attacks.find((attack) => attack.kind === 'straight')!;
+  const finaleFan = finale.attacks.find((attack) => attack.kind === 'straight')!;
+  const laser = finale.attacks.find((attack) => attack.kind === 'laser')!;
+  expect(finaleFan.count).toBeGreaterThan(openingFan.count);
+  expect(finaleFan.interval).toBeLessThan(openingFan.interval);
+  expect(laser.laser!.warning).toBeGreaterThan(1);
+});
 function run(game: Game, seconds: number) { for (let i = 0; i < Math.round(seconds / step); i++) game.update(step, IDLE_INPUT); }
 function stageGame(bossAt = 1) {
   const definition: StageDefinition = { ...stageOne, combat: { ...stageOne.combat, spawns: [] }, progression: { ...stageOne.progression, bossAt } };
