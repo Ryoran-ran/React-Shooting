@@ -6,3 +6,5 @@ export interface WorldBody {
   previousPosition: Vec2;
   velocity: Vec2;
 }
+
+export interface AimTarget { id: string; position: Vec2 }

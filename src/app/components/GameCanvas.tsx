@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { GAME_CONFIG } from '../../game/config';
 import { Game } from '../../game/core/Game';
 import { GameLoop } from '../../game/core/GameLoop';
-import { getHudSnapshot, type HudSnapshot } from '../../game/core/GameState';
+import { getHudSnapshot, type GameMode, type HudSnapshot } from '../../game/core/GameState';
 import { PixiRenderer } from '../../game/rendering/PixiRenderer';
 import { InputSystem } from '../../game/systems/InputSystem';
 
@@ -12,6 +12,8 @@ export interface GameControls {
   reset: () => void;
   targets: (enabled: boolean) => void;
   motion: (enabled: boolean) => void;
+  mode: (mode: GameMode) => void;
+  enemyAttacks: (enabled: boolean) => void;
 }
 
 interface Props {
@@ -31,12 +33,21 @@ export function GameCanvas({ onSnapshot, onReady }: Props) {
     const input = new InputSystem();
     const renderer = new PixiRenderer();
     let lastHudTime = -1;
-    const publish = () => onSnapshot(getHudSnapshot(game.state));
+    let lastGameOver = false;
+    let lastGameOverReady = false;
+    const publish = () => {
+      const snapshot = getHudSnapshot(game.state);
+      lastGameOver = snapshot.gameOver;
+      lastGameOverReady = snapshot.gameOverReady;
+      onSnapshot(snapshot);
+    };
     const loop = new GameLoop(
       (step) => game.update(step, input.read()),
       (alpha) => {
         renderer.render(game.state, alpha);
-        if (game.state.elapsed - lastHudTime >= GAME_CONFIG.ui.updateInterval) {
+        const gameOverReady = game.state.gameOver && game.state.gameOverElapsed >= GAME_CONFIG.defeat.duration;
+        if (game.state.gameOver !== lastGameOver || gameOverReady !== lastGameOverReady
+          || game.state.elapsed - lastHudTime >= GAME_CONFIG.ui.updateInterval) {
           lastHudTime = game.state.elapsed;
           publish();
         }
@@ -53,6 +64,8 @@ export function GameCanvas({ onSnapshot, onReady }: Props) {
       },
       targets: (enabled) => { game.setTargetsEnabled(enabled); publish(); },
       motion: (enabled) => { game.setTargetsMoving(enabled); publish(); },
+      mode: (mode) => { input.clear(); game.setMode(mode); lastHudTime = -1; loop.resetClock(); publish(); },
+      enemyAttacks: (enabled) => { game.setEnemyAttacksEnabled(enabled); publish(); },
     };
 
     void renderer.init(host.current).then((ready) => {

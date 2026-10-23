@@ -7,8 +7,10 @@ import { IDLE_INPUT, type InputFrame } from '../game/systems/InputSystem';
 import { selectForwardTarget, steerBullet } from '../game/systems/AttackSystem';
 import type { Bullet } from '../game/entities/Bullet';
 import type { PracticeTarget } from '../game/entities/PracticeTarget';
+import { trainingGround } from '../game/stages/trainingGround';
 
 const step = GAME_CONFIG.loop.step;
+const practice = () => new Game(trainingGround, 'practice');
 function run(game: Game, seconds: number, input: Partial<InputFrame> = {}) {
   for (let i = 0; i < Math.round(seconds / step); i++) game.update(step, { ...IDLE_INPUT, ...input });
 }
@@ -26,8 +28,8 @@ function bullet(): Bullet {
 
 describe('player movement', () => {
   it('normalizes diagonal movement to the same 300 px/s speed', () => {
-    const straight = new Game();
-    const diagonal = new Game();
+    const straight = practice();
+    const diagonal = practice();
     run(straight, 0.5, { x: 1 });
     run(diagonal, 0.5, { x: 1, y: -1 });
     expect(straight.state.player.position.x - 360).toBeCloseTo(150);
@@ -35,7 +37,7 @@ describe('player movement', () => {
   });
 
   it('changes speed immediately with Shift without firing', () => {
-    const game = new Game();
+    const game = practice();
     game.update(step, { ...IDLE_INPUT, x: 1, slow: true });
     expect(game.state.player.position.x).toBeCloseTo(362);
     game.update(step, { ...IDLE_INPUT, x: 1 });
@@ -44,7 +46,7 @@ describe('player movement', () => {
   });
 
   it('keeps the entire player inside the independently configured field', () => {
-    const game = new Game();
+    const game = practice();
     game.state.field = { x: 100, y: 200, width: 500, height: 400 };
     run(game, 4, { x: 1, y: 1 });
     expect(game.state.player.position).toEqual({ x: 578, y: 578 });
@@ -56,7 +58,7 @@ describe('player movement', () => {
 describe('fixed timestep and pause', () => {
   it('produces the same movement and shot count at 30, 60 and 144 FPS', () => {
     const results = [30, 60, 144].map((fps) => {
-      const game = new Game();
+      const game = practice();
       const clock = new FixedStepClock();
       for (let i = 0; i < fps; i++) clock.advance(1 / fps, (dt) => game.update(dt, { ...IDLE_INPUT, y: -1, fire: true }));
       return { elapsed: game.state.elapsed, y: game.state.player.position.y, shots: game.state.shotsFired };
@@ -75,7 +77,7 @@ describe('fixed timestep and pause', () => {
   });
 
   it('freezes all world simulation and resets cleanly', () => {
-    const game = new Game();
+    const game = practice();
     run(game, 1, { fire: true, slow: true });
     game.setPaused(true);
     const before = structuredClone(game.state);
@@ -92,7 +94,7 @@ describe('fixed timestep and pause', () => {
 
 describe('shots and homing', () => {
   it('fires straight shots with the configured speed and damage', () => {
-    const game = new Game();
+    const game = practice();
     run(game, 0.5, { fire: true });
     expect(game.state.shotsFired).toBe(5);
     for (const shot of game.state.bullets) {
@@ -132,7 +134,7 @@ describe('shots and homing', () => {
   });
 
   it('fires forward with no targets, and existing shots retain their mode when Shift changes', () => {
-    const game = new Game();
+    const game = practice();
     game.setTargetsEnabled(false);
     game.update(step, { ...IDLE_INPUT, fire: true, slow: true });
     const shot = game.state.bullets[0];
@@ -146,7 +148,7 @@ describe('shots and homing', () => {
   });
 
   it('keeps bullets bounded during sustained homing fire and handles target removal', () => {
-    const game = new Game();
+    const game = practice();
     run(game, 2, { fire: true, slow: true });
     game.setTargetsEnabled(false);
     run(game, 20, { fire: true, slow: true });
@@ -157,7 +159,7 @@ describe('shots and homing', () => {
 
 describe('coordinate separation', () => {
   it('round-trips a translated, scaled and rotated view without modifying world data', () => {
-    const game = new Game();
+    const game = practice();
     const original = structuredClone(game.state.player.position);
     const field = { ...game.state.field };
     const view = { offset: { x: 120, y: -30 }, scale: { x: 0.7, y: 1.3 }, rotation: Math.PI / 2 };

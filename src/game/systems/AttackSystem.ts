@@ -1,13 +1,13 @@
 import { GAME_CONFIG } from '../config';
 import type { Vec2, FieldBounds } from '../core/coordinates';
 import type { Bullet } from '../entities/Bullet';
-import type { PracticeTarget } from '../entities/PracticeTarget';
+import type { AimTarget } from '../entities/types';
 import type { GameState } from '../core/GameState';
 import type { InputFrame } from './InputSystem';
 
-export function selectForwardTarget(origin: Vec2, targets: PracticeTarget[]): PracticeTarget | undefined {
+export function selectForwardTarget<T extends AimTarget>(origin: Vec2, targets: T[]): T | undefined {
   // Compare angle to straight ahead first; use distance to break angular ties.
-  return targets.reduce<PracticeTarget | undefined>((best, target) => {
+  return targets.reduce<T | undefined>((best, target) => {
     if (!best) return target;
     const angle = (point: Vec2) => Math.abs(Math.atan2(point.x - origin.x, origin.y - point.y));
     const delta = angle(target.position) - angle(best.position);
@@ -15,6 +15,10 @@ export function selectForwardTarget(origin: Vec2, targets: PracticeTarget[]): Pr
     return Math.hypot(target.position.x - origin.x, target.position.y - origin.y)
       < Math.hypot(best.position.x - origin.x, best.position.y - origin.y) ? target : best;
   }, undefined);
+}
+
+export function getAimTargets(state: GameState): AimTarget[] {
+  return state.mode === 'practice' ? state.targets : state.enemies.filter((enemy) => enemy.hp > 0 && enemy.entered && !enemy.retired);
 }
 
 export function updateAttack(state: GameState, input: InputFrame, dt: number, nextId: () => string): void {
@@ -28,7 +32,7 @@ export function updateAttack(state: GameState, input: InputFrame, dt: number, ne
   const config = GAME_CONFIG.shot[mode];
   while (player.fireCooldown <= 0) {
     const position = { x: player.position.x, y: player.position.y - GAME_CONFIG.shot.muzzleOffset };
-    const target = mode === 'homing' ? selectForwardTarget(player.position, state.targets) : undefined;
+    const target = mode === 'homing' ? selectForwardTarget(player.position, getAimTargets(state)) : undefined;
     state.bullets.push({
       id: nextId(), position, previousPosition: { ...position }, velocity: { x: 0, y: -config.speed },
       mode, speed: config.speed, damage: config.damage, age: 0, targetId: target?.id ?? null,
@@ -39,7 +43,7 @@ export function updateAttack(state: GameState, input: InputFrame, dt: number, ne
   }
 }
 
-export function steerBullet(bullet: Bullet, targets: PracticeTarget[], dt: number): void {
+export function steerBullet(bullet: Bullet, targets: AimTarget[], dt: number): void {
   if (bullet.mode !== 'homing' || !bullet.targetId) return;
   const target = targets.find((candidate) => candidate.id === bullet.targetId);
   if (!target) { bullet.targetId = null; return; } // Continue on the last heading; never retarget.
@@ -54,7 +58,7 @@ export function steerBullet(bullet: Bullet, targets: PracticeTarget[], dt: numbe
   bullet.velocity = { x: Math.cos(angle) * bullet.speed, y: Math.sin(angle) * bullet.speed };
 }
 
-export function updateBullets(bullets: Bullet[], targets: PracticeTarget[], field: FieldBounds, dt: number): Bullet[] {
+export function updateBullets(bullets: Bullet[], targets: AimTarget[], field: FieldBounds, dt: number): Bullet[] {
   const margin = GAME_CONFIG.shot.cullMargin;
   return bullets.filter((bullet) => {
     bullet.previousPosition = { ...bullet.position };
