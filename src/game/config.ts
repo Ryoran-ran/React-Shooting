@@ -4,6 +4,7 @@ export const GAME_CONFIG = {
   loop: { step: 1 / 60, maxFrameTime: 0.25 },
   player: { speed: 300, slowSpeed: 120, visualRadius: 22, hitRadius: 4, maxHp: 10, invulnerability: 1.5, hitFlash: 0.22 },
   practice: { horizontalFrequency: 0.65, verticalFrequency: 0.85, verticalAmplitude: 15 },
+  gamepad: { deadZone: 0.18, buttonThreshold: 0.5, fire: 0, slow: [1, 6, 7], pause: 9 },
   shot: {
     straight: { interval: 0.12, damage: 2, speed: 600 },
     homing: { interval: 0.20, damage: 1, speed: 450, turnRate: Math.PI },

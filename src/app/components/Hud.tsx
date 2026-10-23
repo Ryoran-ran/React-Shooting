@@ -3,6 +3,7 @@ import type { HudSnapshot } from '../../game/core/GameState';
 import { trainingGround } from '../../game/stages/trainingGround';
 import type { GameControls } from './GameCanvas';
 import { DolphinIcon, PauseIcon } from './Icons';
+import type { GamepadStatus } from '../../game/systems/GamepadSystem';
 
 export function formatTime(seconds: number): string {
   return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
@@ -15,7 +16,10 @@ function Switch({ label, checked, disabled = false, onChange }: { label: string;
   </button>;
 }
 
-export function LeftHud({ hud, controls }: { hud: HudSnapshot; controls: GameControls | null }) {
+interface HudProps { hud: HudSnapshot; controls: GameControls | null; controller: GamepadStatus }
+
+export function LeftHud({ hud, controls, controller }: HudProps) {
+  const pad = controller.kind === 'connected';
   return <aside className="info-panel left-panel" aria-label="プレイヤー情報">
     <div className="pilot-heading"><span className="eyebrow">YOUR PILOT</span><span className="tiny-code">D–01</span></div>
     <div className="pilot-identity"><div className="pilot-avatar"><DolphinIcon /></div><div><h2>Lumi<span>ルミ</span></h2><p>小さなひれで、大きな冒険へ。</p></div></div>
@@ -27,17 +31,25 @@ export function LeftHud({ hud, controls }: { hud: HudSnapshot; controls: GameCon
     <div className="heal-block"><div className="stat-heading"><span className="eyebrow">HEAL</span><span className="muted-value">{hud.heal} <small>%</small></span></div><div className="heal-track" role="progressbar" aria-label="回復ゲージ" aria-valuemin={0} aria-valuemax={100} aria-valuenow={hud.heal}><span style={{ width: `${hud.heal}%` }} /></div><p className="subtle-note">緑のアイテムで +20 · 100でHPを1回復</p></div>
     <div className={`status-box ${hud.hit || hud.gameOver ? 'damaged' : hud.slow ? 'focused' : ''}`}><span className="eyebrow">STATUS</span><span><i />{hud.gameOver ? 'DOWN' : hud.paused ? 'PAUSED' : hud.hit ? 'HIT' : hud.invulnerable ? 'INVINCIBLE' : hud.slow ? 'FOCUS' : 'NORMAL'}</span></div>
     <div className="best-score"><span className="eyebrow">BEST SCORE</span><span>—</span></div>
-    <div className="controls-guide"><span className="eyebrow">HOW TO SWIM</span>
+    <div className="controls-guide"><span className="eyebrow">HOW TO SWIM <span className="input-source" title={controller.name}>{pad ? 'PAD' : 'KEYBOARD'}</span></span>
+      {pad ? <>
+        <div><span><kbd className="wide-key">L</kbd><em>/ 十字キー</em></span><span>移動</span></div>
+        <div><span><kbd className="wide-key">A / ×</kbd><em>下ボタン</em></span><span>ショット</span></div>
+        <div><span><kbd className="wide-key">B / ○</kbd><em>/ LT・RT</em></span><span>低速・追尾</span></div>
+        <div><span><kbd className="wide-key">Start</kbd><em>/ Options</em></span><span>ポーズ</span></div>
+      </> : <>
       <div><span><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd><em>/ WASD</em></span><span>移動</span></div>
       <div><span><kbd>Z</kbd><em>/</em><kbd className="wide-key">Space</kbd></span><span>ショット</span></div>
       <div><span><kbd className="wide-key">Shift</kbd><em>長押し</em></span><span>低速・追尾</span></div>
       <div><span><kbd className="wide-key">Esc</kbd></span><span>ポーズ</span></div>
+      </>}
     </div>
-    <button className="pause-button" disabled={!controls || hud.gameOver} onClick={(event) => { controls?.pause(); event.currentTarget.blur(); }}><PauseIcon paused={hud.paused} />{hud.paused ? '泳ぎを再開' : 'ひとやすみ'}<kbd>Esc</kbd></button>
+    <button className="pause-button" disabled={!controls || hud.gameOver} onClick={(event) => { controls?.pause(); event.currentTarget.blur(); }}><PauseIcon paused={hud.paused} />{hud.paused ? '泳ぎを再開' : 'ひとやすみ'}<kbd>{pad ? 'Start' : 'Esc'}</kbd></button>
   </aside>;
 }
 
-export function RightHud({ hud, controls }: { hud: HudSnapshot; controls: GameControls | null }) {
+export function RightHud({ hud, controls, controller }: HudProps) {
+  const pad = controller.kind === 'connected';
   const mode = hud.slow ? 'homing' : 'straight';
   const shot = GAME_CONFIG.shot[mode];
   return <aside className="info-panel right-panel" aria-label="トレーニング情報">
@@ -51,7 +63,7 @@ export function RightHud({ hud, controls }: { hud: HudSnapshot; controls: GameCo
       <div className="shot-card-label"><span className="eyebrow">SHOT MODE</span><span className="mode-dot" /></div>
       <div className="shot-mode-name"><span className="shot-symbol">{hud.slow ? '⌁' : '↑'}</span><div><h3>{hud.slow ? 'HOMING' : 'STRAIGHT'}</h3><span>{hud.slow ? 'ゆっくり、確実に。' : 'まっすぐ、青の先へ。'}</span></div></div>
       <div className="shot-spec"><span>POWER <strong>{shot.damage}</strong></span><span>INTERVAL <strong>{shot.interval.toFixed(2)}<small>s</small></strong></span></div>
-      <p><kbd>Shift</kbd>{hud.slow ? 'を離すと直進ショット' : 'を押すと低速・追尾ショット'}</p>
+      <p><kbd>{pad ? 'B / ○' : 'Shift'}</kbd>{hud.slow ? 'を離すと直進ショット' : 'を押すと低速・追尾ショット'}</p>
     </div>
     <div className="practice-heading"><span className="eyebrow">PRACTICE SETTINGS</span><span>切替時にリセット</span></div>
     <Switch label="敵との戦闘" checked={hud.mode === 'combat'} disabled={!controls} onChange={(enabled) => controls?.mode(enabled ? 'combat' : 'practice')} />
@@ -61,7 +73,7 @@ export function RightHud({ hud, controls }: { hud: HudSnapshot; controls: GameCo
     </>}
     <div className="event-box"><span className="eyebrow">{hud.mode === 'combat' ? 'BATTLE LOG' : 'FIELD NOTE'}</span><p>{hud.mode === 'combat'
       ? hud.gameOver ? 'HPが0になりました。リトライで、もう一度挑戦できます。' : hud.eventMessage || '赤い弾と予兆線に注意。緑の回復アイテムを集めながら、敵を迎え撃とう。'
-      : hud.targetsEnabled ? <>クラゲに向かって撃ってみよう。<br />Shiftで低速・追尾ショット。</> : <>どちらのショットも正面へ。<br />自由に泳いでみよう。</>}</p><span className="subtle-note">{hud.mode === 'combat' ? '敵本体にも接触判定があります' : '練習用ターゲット · 当たり判定なし'}</span></div>
+      : hud.targetsEnabled ? <>クラゲに向かって撃ってみよう。<br />{pad ? 'B / ○で低速・追尾ショット。' : 'Shiftで低速・追尾ショット。'}</> : <>どちらのショットも正面へ。<br />自由に泳いでみよう。</>}</p><span className="subtle-note">{hud.mode === 'combat' ? '敵本体にも接触判定があります' : '練習用ターゲット · 当たり判定なし'}</span></div>
     <div className="telemetry"><span>SHOTS FIRED <strong>{String(hud.shotsFired).padStart(4, '0')}</strong></span><span>{hud.mode === 'combat' ? 'DEFEATED' : 'ON FIELD'} <strong>{String(hud.mode === 'combat' ? hud.defeatedCount : hud.bulletCount).padStart(2, '0')}</strong></span></div>
     <div className="panel-bottom-note"><span className="live-dot" />{hud.mode === 'combat' ? `HOSTILE SHOTS ${hud.hostileCount} · ENEMIES ${hud.enemyCount}` : 'ALL SYSTEMS CALM'}</div>
   </aside>;

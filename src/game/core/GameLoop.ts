@@ -21,7 +21,7 @@ export class GameLoop {
   private running = false;
   private clock = new FixedStepClock();
 
-  constructor(private update: (step: number) => void, private render: (alpha: number) => void) {}
+  constructor(private update: (step: number) => void, private render: (alpha: number) => void, private beforeFrame: () => void = () => {}) {}
 
   start(): void {
     if (this.running) return;
@@ -29,6 +29,7 @@ export class GameLoop {
     this.lastTime = null;
     const frame = (time: number) => {
       if (!this.running) return;
+      this.beforeFrame();
       const delta = this.lastTime === null ? 0 : (time - this.lastTime) / 1000;
       this.lastTime = time;
       this.render(this.clock.advance(delta, this.update));

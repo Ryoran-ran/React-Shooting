@@ -4,7 +4,8 @@ import { Game } from '../../game/core/Game';
 import { GameLoop } from '../../game/core/GameLoop';
 import { getHudSnapshot, type GameMode, type HudSnapshot } from '../../game/core/GameState';
 import { PixiRenderer } from '../../game/rendering/PixiRenderer';
-import { InputSystem } from '../../game/systems/InputSystem';
+import { combineInputs, InputSystem } from '../../game/systems/InputSystem';
+import { GamepadSystem, INITIAL_GAMEPAD_STATUS, type GamepadStatus } from '../../game/systems/GamepadSystem';
 
 export interface GameControls {
   pause: () => void;
@@ -19,9 +20,10 @@ export interface GameControls {
 interface Props {
   onSnapshot: (snapshot: HudSnapshot) => void;
   onReady: (controls: GameControls | null) => void;
+  onControllerChange: (status: GamepadStatus) => void;
 }
 
-export function GameCanvas({ onSnapshot, onReady }: Props) {
+export function GameCanvas({ onSnapshot, onReady, onControllerChange }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState(false);
 
@@ -31,6 +33,8 @@ export function GameCanvas({ onSnapshot, onReady }: Props) {
     let detachInput: (() => void) | undefined;
     const game = new Game();
     const input = new InputSystem();
+    const gamepad = new GamepadSystem();
+    let lastControllerStatus = INITIAL_GAMEPAD_STATUS;
     const renderer = new PixiRenderer();
     let lastHudTime = -1;
     let lastGameOver = false;
@@ -42,7 +46,7 @@ export function GameCanvas({ onSnapshot, onReady }: Props) {
       onSnapshot(snapshot);
     };
     const loop = new GameLoop(
-      (step) => game.update(step, input.read()),
+      (step) => game.update(step, combineInputs(input.read(), gamepad.read())),
       (alpha) => {
         renderer.render(game.state, alpha);
         const gameOverReady = game.state.gameOver && game.state.gameOverElapsed >= GAME_CONFIG.defeat.duration;
@@ -52,19 +56,35 @@ export function GameCanvas({ onSnapshot, onReady }: Props) {
           publish();
         }
       },
+      () => {
+        const active = !document.hidden && document.hasFocus();
+        const actions = gamepad.poll(active);
+        if (actions.disconnected) setPaused(true);
+        if (active) {
+          if (game.state.gameOver) {
+            if (game.state.gameOverElapsed >= GAME_CONFIG.defeat.duration && (actions.confirmPressed || actions.pausePressed)) controls.reset();
+          } else if (actions.pausePressed) controls.pause();
+          else if (game.state.paused && actions.confirmPressed) controls.resume();
+        }
+        const status = gamepad.status;
+        if (status.kind !== lastControllerStatus.kind || status.name !== lastControllerStatus.name || status.needsRelease !== lastControllerStatus.needsRelease) {
+          lastControllerStatus = status;
+          onControllerChange(status);
+        }
+      },
     );
     const setPaused = (paused: boolean) => {
-      input.clear(); game.setPaused(paused); loop.resetClock(); publish();
+      input.clear(); gamepad.clear(); game.setPaused(paused); loop.resetClock(); publish();
     };
     const controls: GameControls = {
       pause: () => setPaused(!game.state.paused),
       resume: () => setPaused(false),
       reset: () => {
-        input.clear(); game.reset(); lastHudTime = -1; loop.resetClock(); publish();
+        input.clear(); gamepad.clear(); game.reset(); lastHudTime = -1; loop.resetClock(); publish();
       },
       targets: (enabled) => { game.setTargetsEnabled(enabled); publish(); },
       motion: (enabled) => { game.setTargetsMoving(enabled); publish(); },
-      mode: (mode) => { input.clear(); game.setMode(mode); lastHudTime = -1; loop.resetClock(); publish(); },
+      mode: (mode) => { input.clear(); gamepad.clear(); game.setMode(mode); lastHudTime = -1; loop.resetClock(); publish(); },
       enemyAttacks: (enabled) => { game.setEnemyAttacksEnabled(enabled); publish(); },
     };
 
@@ -79,9 +99,9 @@ export function GameCanvas({ onSnapshot, onReady }: Props) {
     });
 
     return () => {
-      cancelled = true; detachInput?.(); loop.stop(); renderer.destroy(); onReady(null);
+      cancelled = true; detachInput?.(); gamepad.clear(); loop.stop(); renderer.destroy(); onReady(null); onControllerChange(INITIAL_GAMEPAD_STATUS);
     };
-  }, [onSnapshot, onReady]);
+  }, [onSnapshot, onReady, onControllerChange]);
 
   return <div className="canvas-host" ref={host}>
     {error && <div className="canvas-error" role="alert">

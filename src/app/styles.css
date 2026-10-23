@@ -79,6 +79,7 @@ h1, h2, h3, p { margin: 0; }
 .best-score > span:last-child { color: #6b8a96; font-size: 16px; }
 .controls-guide { margin-top: auto; padding-top: 20px; }
 .controls-guide > .eyebrow { display: block; margin-bottom: 13px; }
+.input-source { float: right; color: #a3c7b9; font-size: 8px; letter-spacing: 1px; }
 .controls-guide > div { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; height: 20px; }
 .controls-guide > div > span:first-child { display: flex; align-items: center; gap: 4px; }
 .controls-guide > div > span:last-child { font-size: 10px; color: #9eb6bb; }

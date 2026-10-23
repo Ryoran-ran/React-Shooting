@@ -1,6 +1,11 @@
 export interface InputFrame { x: number; y: number; slow: boolean; fire: boolean }
 export const IDLE_INPUT: InputFrame = { x: 0, y: 0, slow: false, fire: false };
 
+export function combineInputs(keyboard: InputFrame, gamepad: InputFrame): InputFrame {
+  const movement = keyboard.x !== 0 || keyboard.y !== 0 ? keyboard : gamepad;
+  return { x: movement.x, y: movement.y, slow: keyboard.slow || gamepad.slow, fire: keyboard.fire || gamepad.fire };
+}
+
 const GAME_KEYS = new Set([
   'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD',
   'KeyZ', 'Space', 'ShiftLeft', 'ShiftRight', 'Escape',
