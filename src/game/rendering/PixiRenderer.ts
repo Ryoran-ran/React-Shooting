@@ -3,6 +3,8 @@ import { GAME_CONFIG } from '../config';
 import type { GameState } from '../core/GameState';
 import { interpolate } from '../core/coordinates';
 import type { ShotMode } from '../entities/Bullet';
+import { CombatRenderer } from './CombatRenderer';
+import { getPlayerPose } from './playerPose';
 
 interface TargetVisual { root: Container; tentacles: Graphics }
 
@@ -15,6 +17,8 @@ export class PixiRenderer {
   private hitPoint = new Graphics();
   private muzzle = new Graphics();
   private ripples = new Graphics();
+  private shield = new Graphics();
+  private combat!: CombatRenderer;
   private bubbles: { graphic: Graphics; x: number; y: number; speed: number; phase: number }[] = [];
   private bullets = new Map<string, Container>();
   private targets = new Map<string, TargetVisual>();
@@ -45,6 +49,7 @@ export class PixiRenderer {
     const mask = new Graphics().rect(0, 0, 720, 720).fill(0xffffff);
     this.app.stage.addChild(mask);
     this.world.mask = mask;
+    this.combat = new CombatRenderer(this.world);
     this.createDolphin();
     return true;
   }
@@ -125,6 +130,8 @@ export class PixiRenderer {
       .circle(0, 0, GAME_CONFIG.player.hitRadius).fill(0xf5f0cc)
       .circle(0, 0, 1.5).fill(0xffffff);
     this.world.addChild(this.hitPoint);
+    this.shield.circle(0, 0, 26).stroke({ color: 0xb7ede4, width: 1, alpha: 0.55 });
+    this.world.addChild(this.shield);
     this.muzzle.star(0, 0, 4, 10, 2).fill({ color: 0xe2ffdf, alpha: 0.9 });
     this.world.addChild(this.muzzle);
   }
@@ -167,15 +174,21 @@ export class PixiRenderer {
       bubble.graphic.position.set(bubble.x + Math.sin(t * 0.3 + bubble.phase) * 8, (bubble.y - t * bubble.speed % 750 + 750) % 750 - 15);
     }
     const player = state.player;
-    const position = interpolate(player.previousPosition, player.position, alpha);
+    this.combat.render(state, alpha);
+    const pose = getPlayerPose(state, alpha);
+    const position = pose.position;
     this.dolphin.position.set(position.x, position.y);
-    this.dolphin.rotation = player.velocity.x / GAME_CONFIG.player.speed * 0.17;
+    this.dolphin.rotation = pose.rotation;
+    this.dolphin.alpha = pose.opacity;
+    this.shield.position.set(position.x, position.y);
+    this.shield.visible = !state.gameOver && player.invulnerableFor > 0;
     this.tail.rotation = Math.sin(t * (player.slow ? 5 : 9)) * 0.035;
     this.tail.scale.y = 0.8 + Math.sin(t * (player.slow ? 5 : 9)) * 0.2;
     this.ripples.position.set(position.x, position.y);
+    this.ripples.visible = !state.gameOver;
     this.ripples.scale.set(1 + Math.sin(t * 3) * 0.08);
     this.hitPoint.position.set(position.x, position.y);
-    this.hitPoint.visible = player.slow;
+    this.hitPoint.visible = !state.gameOver;
     this.muzzle.position.set(position.x, position.y - GAME_CONFIG.shot.muzzleOffset);
     this.muzzle.alpha = player.muzzleFlash / 0.075;
     this.muzzle.scale.set(0.65 + player.muzzleFlash * 5);

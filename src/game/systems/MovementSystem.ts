@@ -4,7 +4,8 @@ import type { Player } from '../entities/Player';
 import type { InputFrame } from './InputSystem';
 
 export function movePlayer(player: Player, input: InputFrame, field: FieldBounds, dt: number): void {
-  const magnitude = Math.hypot(input.x, input.y) || 1;
+  // Preserve partial analog-stick input; only normalize vectors above full speed.
+  const magnitude = Math.max(1, Math.hypot(input.x, input.y));
   const speed = input.slow ? GAME_CONFIG.player.slowSpeed : GAME_CONFIG.player.speed;
   player.slow = input.slow;
   player.velocity = { x: input.x / magnitude * speed, y: input.y / magnitude * speed };

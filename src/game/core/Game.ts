@@ -2,25 +2,41 @@ import { createPlayer } from '../entities/Player';
 import { GAME_CONFIG } from '../config';
 import type { PracticeTarget } from '../entities/PracticeTarget';
 import { trainingGround, type TrainingDefinition } from '../stages/trainingGround';
-import { updateAttack, updateBullets } from '../systems/AttackSystem';
+import { getAimTargets, updateAttack, updateBullets } from '../systems/AttackSystem';
 import type { InputFrame } from '../systems/InputSystem';
 import { movePlayer } from '../systems/MovementSystem';
 import { createDefaultView } from './coordinates';
-import type { GameState } from './GameState';
+import type { GameMode, GameState } from './GameState';
+import { spawnEnemies } from '../systems/SpawnSystem';
+import { moveEnemies } from '../systems/EnemyMovementSystem';
+import { updateEnemyAttacks, updateHostileProjectiles } from '../systems/EnemyAttackSystem';
+import { resolvePlayerDamage, resolvePlayerShots } from '../systems/CollisionSystem';
+import { resolveDefeats, updateItems } from '../systems/DropSystem';
+import { updateEffects, updateHealth } from '../systems/HealthSystem';
 
 export class Game {
   state!: GameState;
-  private bulletId = 0;
+  private entityId = 0;
+  private randomSeed = 0;
+  private nextId = () => `entity-${++this.entityId}`;
+  private random = () => {
+    this.randomSeed = (Math.imul(this.randomSeed, 1664525) + 1013904223) >>> 0;
+    return this.randomSeed / 4294967296;
+  };
 
-  constructor(readonly definition: TrainingDefinition = trainingGround) { this.reset(); }
+  constructor(readonly definition: TrainingDefinition = trainingGround, mode: GameMode = 'combat') { this.reset(mode); }
 
-  reset(): void {
-    this.bulletId = 0;
+  reset(mode: GameMode = this.state?.mode ?? 'combat'): void {
+    this.randomSeed = this.definition.combat.seed;
     const { x, y } = this.definition.playerSpawn;
     this.state = {
       elapsed: 0, paused: false, field: { ...this.definition.field }, view: createDefaultView(),
-      player: createPlayer(x, y), bullets: [], targets: this.createTargets(),
+      player: createPlayer(x, y), bullets: [], targets: mode === 'practice' ? this.createTargets() : [],
       targetsEnabled: true, targetsMoving: true, shotsFired: 0,
+      mode, gameOver: false, gameOverElapsed: 0, previousGameOverElapsed: 0,
+      enemies: [], enemyBullets: [], lasers: [], items: [], effects: [],
+      spawnCursor: 0, spawnCycle: 0, defeatedCount: 0, hitsTaken: 0, itemsCollected: 0,
+      enemyAttacksEnabled: true, eventMessage: '敵が接近中。Z / Spaceで迎え撃とう。', eventUntil: 5,
     };
   }
 
@@ -33,17 +49,23 @@ export class Game {
   }
 
   setPaused(paused: boolean): void {
+    if (this.state.gameOver) return;
     this.state.paused = paused;
     this.state.player.firing = false;
     this.state.player.slow = false;
     this.state.player.velocity = { x: 0, y: 0 };
     // A paused frame must not interpolate backward from the final world position.
-    for (const body of [this.state.player, ...this.state.targets, ...this.state.bullets]) {
+    this.freezeInterpolation();
+  }
+
+  private freezeInterpolation(): void {
+    for (const body of [this.state.player, ...this.state.targets, ...this.state.bullets, ...this.state.enemies, ...this.state.enemyBullets, ...this.state.items]) {
       body.previousPosition = { ...body.position };
     }
   }
 
   setTargetsEnabled(enabled: boolean): void {
+    if (this.state.mode !== 'practice') return;
     this.state.targetsEnabled = enabled;
     this.state.targets = enabled ? this.createTargets() : [];
     if (!enabled) for (const bullet of this.state.bullets) bullet.targetId = null;
@@ -51,10 +73,26 @@ export class Game {
 
   setTargetsMoving(moving: boolean): void { this.state.targetsMoving = moving; }
 
+  setMode(mode: GameMode): void { this.reset(mode); }
+
+  setEnemyAttacksEnabled(enabled: boolean): void {
+    this.state.enemyAttacksEnabled = enabled;
+    if (!enabled) { this.state.enemyBullets = []; this.state.lasers = []; }
+  }
+
   update(dt: number, input: InputFrame): void {
     const state = this.state;
     if (state.paused) return;
+    if (state.gameOver) {
+      state.previousGameOverElapsed = state.gameOverElapsed;
+      if (state.gameOverElapsed < GAME_CONFIG.defeat.duration) {
+        state.gameOverElapsed = Math.min(GAME_CONFIG.defeat.duration, state.gameOverElapsed + dt);
+        updateEffects(state, dt);
+      }
+      return;
+    }
     state.elapsed += dt;
+    updateHealth(state, dt);
     state.player.previousPosition = { ...state.player.position };
     movePlayer(state.player, input, state.field, dt);
     for (const target of state.targets) {
@@ -64,7 +102,29 @@ export class Game {
         target.position.y = target.origin.y + Math.sin(state.elapsed * GAME_CONFIG.practice.verticalFrequency + target.phase) * GAME_CONFIG.practice.verticalAmplitude;
       }
     }
-    updateAttack(state, input, dt, () => `shot-${++this.bulletId}`);
-    state.bullets = updateBullets(state.bullets, state.targets, state.field, dt);
+    if (state.mode === 'combat') {
+      spawnEnemies(state, this.definition, this.nextId);
+      moveEnemies(state.enemies, state.player.position, state.field, dt);
+    }
+    updateAttack(state, input, dt, this.nextId);
+    state.bullets = updateBullets(state.bullets, getAimTargets(state), state.field, dt);
+    if (state.mode === 'combat') {
+      resolvePlayerShots(state);
+      resolveDefeats(state, this.nextId, this.random);
+      if (state.enemyAttacksEnabled) updateEnemyAttacks(state, dt, this.nextId);
+      updateHostileProjectiles(state, dt);
+      resolvePlayerDamage(state, this.nextId);
+      if (state.player.hp === 0) {
+        state.gameOver = true;
+        state.player.firing = false;
+        state.player.slow = false;
+        state.player.muzzleFlash = 0;
+        state.player.velocity = { x: 0, y: 0 };
+        state.bullets = []; state.enemyBullets = []; state.lasers = [];
+        this.freezeInterpolation();
+        return;
+      }
+      updateItems(state, dt, this.nextId);
+    }
   }
 }

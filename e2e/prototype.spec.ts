@@ -7,6 +7,7 @@ async function openSea(page: Page) {
     await page.getByRole('button', { name: '泳ぎを再開 →' }).click();
   }
   await expect(page.locator('canvas')).toBeVisible();
+  await page.getByRole('switch', { name: '敵との戦闘', exact: true }).click();
 }
 
 const position = (page: Page) => page.locator('.field-bottom > span').first();

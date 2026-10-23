@@ -59,10 +59,12 @@ h1, h2, h3, p { margin: 0; }
 .stat-value small { font-size: 11px; color: #5c808c; }
 .hp-segments { display: flex; gap: 4px; height: 8px; margin-top: 11px; }
 .hp-segments span { flex: 1; background: #a1d6bd; border-radius: 1px; box-shadow: 0 0 7px #7cc99b0d; }
+.hp-segments span.empty { background: #294450; box-shadow: none; }
 .heal-block { margin-top: 20px; }
 .muted-value { font-size: 13px; color: #799ba7; font-family: Consolas, monospace; }
 .muted-value small { color: #5b7b88; font-size: 10px; }
 .heal-track { height: 4px; background: #24424f; border-radius: 2px; margin-top: 10px; }
+.heal-track > span { display: block; height: 100%; border-radius: inherit; background: #add9b4; transition: width .15s; }
 .heal-block p { margin-top: 8px; font-size: 8px; }
 .status-box { margin-top: 22px; border: 1px solid #34545e; background: #18344180; height: 43px; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; border-radius: 4px; }
 .status-box > span:last-child { color: #a7d7c1; font-family: Consolas, monospace; font-size: 11px; letter-spacing: 1.1px; display: flex; align-items: center; gap: 8px; }
@@ -70,10 +72,14 @@ h1, h2, h3, p { margin: 0; }
 .status-box.focused { border-color: #a991624e; }
 .status-box.focused > span:last-child { color: #e8d7a5; }
 .status-box.focused i { background: #e8d7a5; }
+.status-box.damaged { border-color: #d9958a70; }
+.status-box.damaged > span:last-child { color: #edb7a6; }
+.status-box.damaged i { background: #edb7a6; }
 .best-score { display: flex; align-items: center; justify-content: space-between; margin-top: 17px; }
 .best-score > span:last-child { color: #6b8a96; font-size: 16px; }
 .controls-guide { margin-top: auto; padding-top: 20px; }
 .controls-guide > .eyebrow { display: block; margin-bottom: 13px; }
+.input-source { float: right; color: #a3c7b9; font-size: 8px; letter-spacing: 1px; }
 .controls-guide > div { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; height: 20px; }
 .controls-guide > div > span:first-child { display: flex; align-items: center; gap: 4px; }
 .controls-guide > div > span:last-child { font-size: 10px; color: #9eb6bb; }
@@ -124,7 +130,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; font: 
 .switch.on > span { background: #c5dfc9; transform: translateX(11px); }
 .event-box { margin-top: 14px; border-left: 2px solid #426971; padding-left: 12px; }
 .event-box .eyebrow { font-size: 8px; color: #7e9da7; letter-spacing: 1.5px; }
-.event-box p { font-size: 10px; color: #91acb4; line-height: 1.9; margin-top: 6px; letter-spacing: .3px; }
+.event-box p { min-height: 48px; font-size: 10px; color: #91acb4; line-height: 1.9; margin-top: 6px; letter-spacing: .3px; }
 .event-box .subtle-note { display: block; font-size: 8px; margin-top: 7px; color: #5b7a87; }
 .telemetry { margin-top: auto; padding-top: 13px; display: flex; justify-content: space-between; gap: 4px; }
 .telemetry > span { font-size: 7px; letter-spacing: .7px; color: #607f8a; }
