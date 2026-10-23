@@ -41,13 +41,13 @@ describe('gamepad movement and actions', () => {
     expect(combined).toEqual({ x: 1, y: 0, fire: true, slow: true });
   });
 
-  it('maps the bottom face button to fire and the right face button or either trigger to focus', () => {
+  it('maps the bottom face button to fire and either shoulder, right face button or trigger to focus', () => {
     const { input, set } = setup();
-    for (const index of [1, 6, 7]) {
+    for (const index of [4, 5, 1, 6, 7]) {
       set([pad({ buttons: buttons([index]) })]); input.poll();
       expect(input.read()).toEqual({ ...IDLE_INPUT, slow: true });
     }
-    set([pad({ buttons: buttons([0, 1]) })]);
+    set([pad({ buttons: buttons([0, 4]) })]);
     expect(input.poll().confirmPressed).toBe(true);
     expect(input.read()).toEqual({ ...IDLE_INPUT, fire: true, slow: true });
     expect(input.poll().confirmPressed).toBe(false);
@@ -62,6 +62,18 @@ describe('gamepad movement and actions', () => {
     set([pad()]); input.poll();
     set([pad({ buttons: buttons([9]) })]);
     expect(input.poll().pausePressed).toBe(true);
+  });
+
+  it('uses only the right face button for menu back, with release gating and no repeat', () => {
+    const { input, set } = setup();
+    for (const index of [4, 5, 6, 7]) {
+      set([pad({ buttons: buttons([index]) })]); expect(input.poll().backPressed).toBe(false);
+    }
+    set([pad({ buttons: buttons([1]) })]); expect(input.poll().backPressed).toBe(true);
+    expect(input.poll().backPressed).toBe(false);
+    input.clear(); expect(input.poll().backPressed).toBe(false);
+    set([pad()]); input.poll();
+    set([pad({ buttons: buttons([1]) })]); expect(input.poll().backPressed).toBe(true);
   });
 
   it('waits for neutral after connection, focus loss and reset, preventing stuck movement or fire', () => {

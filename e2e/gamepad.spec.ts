@@ -8,7 +8,7 @@ interface VirtualPad {
 
 declare global { interface Window { virtualPad: VirtualPad } }
 
-async function openWithPad(page: Page, practice = true) {
+async function installPad(page: Page) {
   await page.addInitScript(() => {
     window.virtualPad = {
       connected: true, axes: [0, 0, 0, 0],
@@ -18,9 +18,14 @@ async function openWithPad(page: Page, practice = true) {
       ...window.virtualPad, id: 'Virtual standard controller', index: 0, mapping: 'standard', timestamp: performance.now(),
     }] : [] });
   });
+}
+
+async function openWithPad(page: Page, practice = true) {
+  await installPad(page);
   await page.clock.install();
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'リセット', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: '戦闘練習', exact: true }).click();
   if (await page.getByRole('dialog', { name: 'ポーズ中' }).isVisible()) await page.keyboard.press('Escape');
   await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 1000);
   if (practice) await page.getByRole('switch', { name: '敵との戦闘', exact: true }).click();
@@ -47,6 +52,38 @@ async function xPosition(page: Page) {
   return Number(text.match(/X (\d+)/)?.[1]);
 }
 
+test('controller menus navigate, confirm and return without carrying held buttons into play', async ({ page }) => {
+  await installPad(page); await page.clock.install(); await page.goto('/');
+  await expect(page.getByRole('button', { name: '冒険をはじめる →' })).toBeEnabled();
+  await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 100);
+  await page.clock.runFor(100);
+  await setPad(page, { buttons: [13] }); await page.clock.runFor(100);
+  await expect(page.getByRole('button', { name: '戦闘練習', exact: true })).toBeFocused();
+  await setPad(page, { buttons: [] }); await page.clock.runFor(50);
+  await setPad(page, { buttons: [12] }); await page.clock.runFor(100);
+  await expect(page.getByRole('button', { name: '冒険をはじめる →' })).toBeFocused();
+  await setPad(page, { buttons: [] }); await page.clock.runFor(50);
+  await setPad(page, { buttons: [0] }); await page.clock.runFor(300);
+  await expect(page.getByRole('dialog', { name: 'ステージ選択' })).toBeVisible();
+  await page.clock.runFor(500);
+  await expect(page.getByRole('dialog', { name: 'ステージ選択' })).toBeVisible();
+  await setPad(page, { buttons: [] }); await page.clock.runFor(50);
+  await setPad(page, { buttons: [0] }); await page.clock.runFor(500);
+  await expect(page.getByRole('dialog', { name: 'ステージ選択' })).not.toBeVisible();
+  await expect(page.locator('.telemetry')).toContainText('SHOTS FIRED 0000');
+  await setPad(page, { buttons: [] }); await page.clock.runFor(50);
+  await setPad(page, { buttons: [9] }); await page.clock.runFor(100);
+  await expect(page.getByRole('dialog', { name: 'ポーズ中' })).toBeVisible();
+  await setPad(page, { buttons: [] }); await page.clock.runFor(50);
+  await setPad(page, { buttons: [1] }); await page.clock.runFor(100);
+  await expect(page.getByRole('dialog', { name: 'ステージ選択' })).toBeVisible();
+  await page.clock.runFor(500);
+  await expect(page.getByRole('dialog', { name: 'ステージ選択' })).toBeVisible();
+  await setPad(page, { buttons: [] }); await page.clock.runFor(50);
+  await setPad(page, { buttons: [1] }); await page.clock.runFor(100);
+  await expect(page.getByRole('dialog', { name: 'タイトル', exact: true })).toBeVisible();
+});
+
 test('controller movement, fire, focus and Start work, including while paused', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -67,9 +104,14 @@ test('controller movement, fire, focus and Start work, including while paused', 
   expect(moved - await xPosition(page)).toBeGreaterThan(60);
   expect(moved - await xPosition(page)).toBeLessThan(90);
 
-  await setPad(page, { buttons: [0, 6] });
-  await page.clock.runFor(650);
-  await expect(page.getByRole('heading', { name: 'HOMING', exact: true })).toBeVisible();
+  for (const shoulder of [4, 5]) {
+    await setPad(page, { buttons: [0, shoulder] });
+    await page.clock.runFor(350);
+    await expect(page.getByRole('heading', { name: 'HOMING', exact: true })).toBeVisible();
+    await expect(page.locator('.controls-guide')).toContainText('L / R');
+    await setPad(page, { buttons: [0] }); await page.clock.runFor(150);
+    await expect(page.getByRole('heading', { name: 'STRAIGHT', exact: true })).toBeVisible();
+  }
   await expect(page.locator('.telemetry')).not.toContainText('SHOTS FIRED 0000');
   await setPad(page, { buttons: [0] });
   await page.clock.runFor(150);

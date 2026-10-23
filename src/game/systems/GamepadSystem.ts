@@ -8,7 +8,7 @@ export interface GamepadStatus {
 }
 
 export const INITIAL_GAMEPAD_STATUS: GamepadStatus = { kind: 'disconnected', name: '', needsRelease: false };
-export interface GamepadActions { pausePressed: boolean; confirmPressed: boolean; disconnected: boolean }
+export interface GamepadActions { pausePressed: boolean; confirmPressed: boolean; backPressed: boolean; disconnected: boolean }
 type GamepadReader = () => readonly (Gamepad | null)[] | null;
 
 function browserGamepads(): readonly (Gamepad | null)[] | null {
@@ -33,6 +33,7 @@ export class GamepadSystem {
   private needsRelease = true;
   private previousPause = false;
   private previousConfirm = false;
+  private previousBack = false;
 
   constructor(private readGamepads: GamepadReader = browserGamepads) {}
 
@@ -45,7 +46,7 @@ export class GamepadSystem {
   }
 
   poll(active = true): GamepadActions {
-    const actions: GamepadActions = { pausePressed: false, confirmPressed: false, disconnected: false };
+    const actions: GamepadActions = { pausePressed: false, confirmPressed: false, backPressed: false, disconnected: false };
     let pads: readonly (Gamepad | null)[] | null;
     try { pads = this.readGamepads(); } catch { pads = null; }
     const available = pads?.filter((pad): pad is Gamepad => pad !== null && pad.connected) ?? [];
@@ -54,7 +55,7 @@ export class GamepadSystem {
     if (!pad) {
       actions.disconnected = this.selected !== null;
       this.selected = null;
-      this.clear(); this.previousPause = false; this.previousConfirm = false;
+      this.clear(); this.previousPause = false; this.previousConfirm = false; this.previousBack = false;
       this.status = { kind: pads === null ? 'unavailable' : available.length ? 'unsupported' : 'disconnected', name: available[0]?.id ?? '', needsRelease: false };
       return actions;
     }
@@ -62,7 +63,7 @@ export class GamepadSystem {
       actions.disconnected = this.selected !== null;
       this.selected = { index: pad.index, id: pad.id };
       this.clear();
-      this.previousPause = false; this.previousConfirm = false;
+      this.previousPause = false; this.previousConfirm = false; this.previousBack = false;
     }
     const pressed = (index: number) => {
       const button = pad.buttons[index];
@@ -74,6 +75,7 @@ export class GamepadSystem {
     const fire = pressed(GAME_CONFIG.gamepad.fire);
     const slow = GAME_CONFIG.gamepad.slow.some(pressed);
     const pause = pressed(GAME_CONFIG.gamepad.pause);
+    const back = pressed(1);
     const neutral = stick.x === 0 && stick.y === 0 && !dpad && !fire && !slow && !pause;
     if (!active) this.clear();
     else if (this.needsRelease) {
@@ -83,9 +85,11 @@ export class GamepadSystem {
       this.frame = { ...direction, fire, slow };
       actions.pausePressed = pause && !this.previousPause;
       actions.confirmPressed = fire && !this.previousConfirm;
+      actions.backPressed = back && !this.previousBack;
     }
     this.previousPause = pause;
     this.previousConfirm = fire;
+    this.previousBack = back;
     this.status = { kind: 'connected', name: pad.id, needsRelease: this.needsRelease };
     return actions;
   }

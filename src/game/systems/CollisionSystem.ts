@@ -41,6 +41,7 @@ export function resolvePlayerShots(state: GameState): void {
       if (time !== null && time < nearestTime) { nearest = enemy; nearestTime = time; }
     }
     if (!nearest) return true;
+    if (nearest.invulnerable) return false;
     nearest.hp = Math.max(0, nearest.hp - shot.damage);
     nearest.hitFlash = GAME_CONFIG.combat.enemyHitFlash;
     return false;

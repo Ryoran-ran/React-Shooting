@@ -1,8 +1,8 @@
 import type { Vec2 } from '../core/coordinates';
 import type { WorldBody } from './types';
 
-export type EnemyKind = 'small' | 'medium' | 'turret' | 'rusher' | 'large';
-export type EnemyAppearance = 'jelly' | 'puffer' | 'anemone' | 'squid' | 'ray';
+export type EnemyKind = 'small' | 'medium' | 'turret' | 'rusher' | 'large' | 'boss';
+export type EnemyAppearance = 'jelly' | 'puffer' | 'anemone' | 'squid' | 'ray' | 'turtle';
 
 export type EnemyMotion =
   | { kind: 'linear'; vx: number; vy: number }
@@ -58,4 +58,6 @@ export interface Enemy extends WorldBody {
   retired: boolean;
   retreat: { destination: Vec2 } | null;
   attackCooldowns: number[];
+  attacks?: EnemyAttack[];
+  invulnerable?: boolean;
 }

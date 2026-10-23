@@ -4,27 +4,29 @@ import type { GameState } from '../core/GameState';
 
 export function updateEnemyAttacks(state: GameState, dt: number, nextId: () => string): void {
   for (const enemy of state.enemies) {
-    if (enemy.retired || enemy.retreat || enemy.hp <= 0) continue;
-    ENEMY_DEFINITIONS[enemy.kind].attacks.forEach((attack, index) => {
+    if (enemy.retired || enemy.retreat || enemy.hp <= 0 || enemy.invulnerable) continue;
+    (enemy.attacks ?? ENEMY_DEFINITIONS[enemy.kind].attacks).forEach((attack, index) => {
       enemy.attackCooldowns[index] -= dt;
       if (!enemy.entered || (attack.belowHpRatio !== undefined && enemy.hp / enemy.maxHp > attack.belowHpRatio)) {
         enemy.attackCooldowns[index] = Math.max(0, enemy.attackCooldowns[index]);
         return;
       }
       while (enemy.attackCooldowns[index] <= 1e-9) {
+        const origin = { x: enemy.position.x,
+          y: enemy.position.y + (enemy.kind === 'boss' ? GAME_CONFIG.boss.muzzleOffset : 0) };
         const base = attack.kind === 'straight' ? Math.PI / 2
-          : Math.atan2(state.player.position.y - enemy.position.y, state.player.position.x - enemy.position.x);
+          : Math.atan2(state.player.position.y - origin.y, state.player.position.x - origin.x);
         for (let i = 0; i < attack.count; i++) {
           const angle = base + (attack.count === 1 ? 0 : (i / (attack.count - 1) - 0.5) * attack.spread);
           if (attack.kind === 'laser' && attack.laser) {
             state.lasers.push({
-              id: nextId(), origin: { ...enemy.position },
-              end: { x: enemy.position.x + Math.cos(angle) * attack.laser.length, y: enemy.position.y + Math.sin(angle) * attack.laser.length },
+              id: nextId(), origin, emitterId: enemy.kind === 'boss' ? enemy.id : undefined,
+              end: { x: origin.x + Math.cos(angle) * attack.laser.length, y: origin.y + Math.sin(angle) * attack.laser.length },
               age: 0, ...attack.laser, damage: 1,
             });
           } else {
             state.enemyBullets.push({
-              id: nextId(), position: { ...enemy.position }, previousPosition: { ...enemy.position },
+              id: nextId(), position: { ...origin }, previousPosition: { ...origin },
               velocity: { x: Math.cos(angle) * attack.speed, y: Math.sin(angle) * attack.speed },
               age: 0, hitRadius: GAME_CONFIG.combat.enemyBulletRadius, damage: 1,
             });

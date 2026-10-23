@@ -36,6 +36,8 @@ export class InputSystem {
       // Keep native keyboard activation and editing intact for the React controls.
       if (event.target instanceof Element && event.target.closest('button, input, textarea, select, a, [contenteditable="true"]')) return;
       event.preventDefault();
+      // A repeat arriving after a menu change, pause or focus loss is not a new press.
+      if (event.repeat && !this.keys.has(event.code)) return;
       this.keys.add(event.code);
     };
     const up = (event: KeyboardEvent) => { this.keys.delete(event.code); };
