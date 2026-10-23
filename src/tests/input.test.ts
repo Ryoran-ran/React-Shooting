@@ -52,4 +52,14 @@ describe('keyboard lifecycle', () => {
     expect(input.read()).toEqual(IDLE_INPUT);
     detach();
   });
+
+  it('does not restore a held key through OS repeat after inputs have been cleared', () => {
+    const { input, key, detach } = setup();
+    key('KeyZ'); key('ArrowRight'); input.clear();
+    key('KeyZ', 'keydown', true); key('ArrowRight', 'keydown', true);
+    expect(input.read()).toEqual(IDLE_INPUT);
+    key('KeyZ', 'keyup'); key('KeyZ');
+    expect(input.read().fire).toBe(true);
+    detach();
+  });
 });

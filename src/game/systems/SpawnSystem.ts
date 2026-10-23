@@ -18,6 +18,12 @@ export function createEnemy(spawn: EnemySpawn, id: string): Enemy {
 export function spawnEnemies(state: GameState, definition: TrainingDefinition, nextId: () => string): void {
   const { spawns, cycleDuration } = definition.combat;
   if (spawns.length === 0) return;
+  if (state.mode === 'stage') {
+    while (state.spawnCursor < spawns.length && state.elapsed + 1e-9 >= spawns[state.spawnCursor].time) {
+      state.enemies.push(createEnemy(spawns[state.spawnCursor++], nextId()));
+    }
+    return;
+  }
   while (true) {
     const spawn = spawns[state.spawnCursor];
     if (state.elapsed + 1e-9 < state.spawnCycle * cycleDuration + spawn.time) break;

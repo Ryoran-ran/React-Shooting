@@ -7,9 +7,10 @@ export interface EnemyBullet extends WorldBody {
   damage: number;
 }
 
-// The direction is locked at warning time. No reference to the emitter is retained.
+// Direction is locked at warning time. Boss emitters hold their position until the beam ends.
 export interface EnemyLaser {
   id: string;
+  emitterId?: string;
   origin: Vec2;
   end: Vec2;
   age: number;

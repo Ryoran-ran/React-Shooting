@@ -2,6 +2,8 @@ import type { EnemyDefinition, EnemyKind } from '../game/entities/Enemy';
 
 // Enemy balance and appearance are data, independent of motion and rendering code.
 export const ENEMY_DEFINITIONS: Record<EnemyKind, EnemyDefinition> = {
+  boss: { name: 'アオウミガメ', appearance: 'turtle', hp: 280, hitRadius: 47, visualRadius: 85,
+    dropRate: 0, dropCount: 0, attacks: [] },
   small: {
     name: 'ミズクラゲ', appearance: 'jelly', hp: 4, hitRadius: 14, visualRadius: 19,
     dropRate: 0.15, dropCount: 1,

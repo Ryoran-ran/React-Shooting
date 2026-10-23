@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 async function openSea(page: Page) {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'リセット', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: '戦闘練習', exact: true }).click();
   if (await page.getByRole('dialog', { name: 'ポーズ中' }).isVisible()) {
     await page.getByRole('button', { name: '泳ぎを再開 →' }).click();
   }

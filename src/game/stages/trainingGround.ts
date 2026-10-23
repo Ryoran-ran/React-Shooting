@@ -1,6 +1,7 @@
 import { GAME_CONFIG } from '../config';
 import type { FieldBounds, Vec2 } from '../core/coordinates';
 import type { EnemySpawn } from '../entities/Enemy';
+import type { StageProgression } from './stages';
 
 export interface TrainingDefinition {
   id: string;
@@ -9,6 +10,7 @@ export interface TrainingDefinition {
   playerSpawn: Vec2;
   targets: { id: string; x: number; y: number; amplitude: number; phase: number }[];
   combat: { cycleDuration: number; seed: number; spawns: EnemySpawn[] };
+  progression?: StageProgression;
 }
 
 export const trainingGround: TrainingDefinition = {

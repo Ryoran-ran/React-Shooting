@@ -6,6 +6,9 @@ import { getHudSnapshot, type GameMode, type HudSnapshot } from '../../game/core
 import { PixiRenderer } from '../../game/rendering/PixiRenderer';
 import { combineInputs, InputSystem } from '../../game/systems/InputSystem';
 import { GamepadSystem, INITIAL_GAMEPAD_STATUS, type GamepadStatus } from '../../game/systems/GamepadSystem';
+import type { StageDefinition } from '../../game/stages/stages';
+import { browserStorage, RecordStore, type SaveData } from '../../game/persistence/records';
+import { backMenu, confirmMenu, moveMenuFocus } from '../menuInput';
 
 export interface GameControls {
   pause: () => void;
@@ -15,17 +18,24 @@ export interface GameControls {
   motion: (enabled: boolean) => void;
   mode: (mode: GameMode) => void;
   enemyAttacks: (enabled: boolean) => void;
+  startStage: (stage: StageDefinition) => void;
 }
 
 interface Props {
   onSnapshot: (snapshot: HudSnapshot) => void;
   onReady: (controls: GameControls | null) => void;
   onControllerChange: (status: GamepadStatus) => void;
+  onRecordsChange: (data: SaveData, available: boolean) => void;
+  menuOpen: boolean;
+  menuKey: string;
 }
 
-export function GameCanvas({ onSnapshot, onReady, onControllerChange }: Props) {
+export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsChange, menuOpen, menuKey }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState(false);
+  const menu = useRef(menuOpen);
+  const clearInputs = useRef(() => {});
+  useEffect(() => { menu.current = menuOpen; clearInputs.current(); }, [menuOpen, menuKey]);
 
   useEffect(() => {
     if (!host.current) return;
@@ -34,23 +44,30 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange }: Props) {
     const game = new Game();
     const input = new InputSystem();
     const gamepad = new GamepadSystem();
+    const records = new RecordStore(browserStorage());
+    clearInputs.current = () => { input.clear(); gamepad.clear(); };
+    let menuDirection = 0;
     let lastControllerStatus = INITIAL_GAMEPAD_STATUS;
     const renderer = new PixiRenderer();
     let lastHudTime = -1;
-    let lastGameOver = false;
-    let lastGameOverReady = false;
+    let lastHudKey = '';
+    let savedRun = -1;
+    const publishRecords = () => onRecordsChange({ ...records.data, stages: { ...records.data.stages } }, records.available);
     const publish = () => {
       const snapshot = getHudSnapshot(game.state);
-      lastGameOver = snapshot.gameOver;
-      lastGameOverReady = snapshot.gameOverReady;
+      lastHudKey = `${snapshot.gameOver}-${snapshot.gameOverReady}-${snapshot.clearCueReady}-${snapshot.clearReady}-${snapshot.stagePhase}-${snapshot.boss?.phase}`;
+      if (snapshot.result && snapshot.runId !== savedRun) {
+        savedRun = snapshot.runId; records.clear(snapshot.runId, snapshot.result); publishRecords();
+      }
       onSnapshot(snapshot);
     };
     const loop = new GameLoop(
-      (step) => game.update(step, combineInputs(input.read(), gamepad.read())),
+      (step) => { if (!menu.current) game.update(step, combineInputs(input.read(), gamepad.read())); },
       (alpha) => {
         renderer.render(game.state, alpha);
-        const gameOverReady = game.state.gameOver && game.state.gameOverElapsed >= GAME_CONFIG.defeat.duration;
-        if (game.state.gameOver !== lastGameOver || gameOverReady !== lastGameOverReady
+        const snapshot = getHudSnapshot(game.state);
+        const key = `${snapshot.gameOver}-${snapshot.gameOverReady}-${snapshot.clearCueReady}-${snapshot.clearReady}-${snapshot.stagePhase}-${snapshot.boss?.phase}`;
+        if (key !== lastHudKey
           || game.state.elapsed - lastHudTime >= GAME_CONFIG.ui.updateInterval) {
           lastHudTime = game.state.elapsed;
           publish();
@@ -59,12 +76,17 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange }: Props) {
       () => {
         const active = !document.hidden && document.hasFocus();
         const actions = gamepad.poll(active);
-        if (actions.disconnected) setPaused(true);
+        if (actions.disconnected && !menu.current) setPaused(true);
         if (active) {
-          if (game.state.gameOver) {
-            if (game.state.gameOverElapsed >= GAME_CONFIG.defeat.duration && (actions.confirmPressed || actions.pausePressed)) controls.reset();
-          } else if (actions.pausePressed) controls.pause();
-          else if (game.state.paused && actions.confirmPressed) controls.resume();
+          const inMenu = menu.current || game.state.paused || game.state.gameOver || Boolean(game.state.result);
+          if (inMenu) {
+            const frame = gamepad.read();
+            const direction = Math.abs(frame.y) > 0.5 ? Math.sign(frame.y) : Math.abs(frame.x) > 0.5 ? Math.sign(frame.x) : 0;
+            if (direction && direction !== menuDirection) moveMenuFocus(direction);
+            if (actions.backPressed) backMenu();
+            menuDirection = direction;
+            if (actions.confirmPressed || actions.pausePressed) confirmMenu();
+          } else { menuDirection = 0; if (actions.pausePressed) controls.pause(); }
         }
         const status = gamepad.status;
         if (status.kind !== lastControllerStatus.kind || status.name !== lastControllerStatus.name || status.needsRelease !== lastControllerStatus.needsRelease) {
@@ -81,19 +103,24 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange }: Props) {
       resume: () => setPaused(false),
       reset: () => {
         input.clear(); gamepad.clear(); game.reset(); lastHudTime = -1; loop.resetClock(); publish();
+        if (game.state.stage) { records.start(game.state.stage.id); publishRecords(); }
       },
       targets: (enabled) => { game.setTargetsEnabled(enabled); publish(); },
       motion: (enabled) => { game.setTargetsMoving(enabled); publish(); },
       mode: (mode) => { input.clear(); gamepad.clear(); game.setMode(mode); lastHudTime = -1; loop.resetClock(); publish(); },
       enemyAttacks: (enabled) => { game.setEnemyAttacksEnabled(enabled); publish(); },
+      startStage: (stage) => {
+        input.clear(); gamepad.clear(); game.startStage(stage); lastHudTime = -1; loop.resetClock();
+        records.start(stage.id); publishRecords(); publish();
+      },
     };
 
     void renderer.init(host.current).then((ready) => {
       if (cancelled || !ready) return;
-      detachInput = input.attach(window, document, controls.pause, () => setPaused(true));
+      detachInput = input.attach(window, document, () => { if (menu.current || game.state.result || game.state.gameOver) backMenu(); else controls.pause(); }, () => { if (!menu.current) setPaused(true); });
       // If initialization finished while the page was inactive, start safely paused.
-      if (document.hidden || !document.hasFocus()) game.setPaused(true);
-      onReady(controls); publish(); loop.start();
+      if (!menu.current && (document.hidden || !document.hasFocus())) game.setPaused(true);
+      onReady(controls); publishRecords(); publish(); loop.start();
     }).catch((cause: unknown) => {
       if (!cancelled) { console.error('PixiJS initialization failed', cause); setError(true); }
     });
@@ -101,7 +128,7 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange }: Props) {
     return () => {
       cancelled = true; detachInput?.(); gamepad.clear(); loop.stop(); renderer.destroy(); onReady(null); onControllerChange(INITIAL_GAMEPAD_STATUS);
     };
-  }, [onSnapshot, onReady, onControllerChange]);
+  }, [onSnapshot, onReady, onControllerChange, onRecordsChange]);
 
   return <div className="canvas-host" ref={host}>
     {error && <div className="canvas-error" role="alert">

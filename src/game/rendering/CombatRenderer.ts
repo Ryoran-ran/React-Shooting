@@ -14,6 +14,25 @@ function removeMissing<T>(visuals: Map<string, T>, ids: Set<string>, destroy: (v
 function drawCreature(appearance: EnemyAppearance): Graphics {
   const g = new Graphics();
   switch (appearance) {
+    case 'turtle':
+      g.ellipse(0, 7, 91, 64).fill({ color: 0x80e0c2, alpha: 0.035 });
+      for (const side of [-1, 1]) {
+        g.moveTo(side * 28, -26).quadraticCurveTo(side * 65, -53, side * 87, -24)
+          .quadraticCurveTo(side * 61, -10, side * 32, 2).fill(0x6caead)
+          .moveTo(side * 26, 27).quadraticCurveTo(side * 61, 40, side * 57, 62)
+          .quadraticCurveTo(side * 35, 59, side * 18, 42).fill(0x599898);
+      }
+      g.ellipse(0, 52, 21, 25).fill(0x9dcec0)
+        .ellipse(0, 0, 43, 53).fill(0x4e8c89).ellipse(0, -3, 36, 45).fill(0x79b8a1)
+        .poly([0, -35, 22, -20, 22, 9, 0, 25, -22, 9, -22, -20]).fill(0x9acbb1)
+        .poly([0, -35, 22, -20, 22, 9, 0, 25, -22, 9, -22, -20, 0, -35]).stroke({ color: 0x4f9186, width: 2 });
+      for (const side of [-1, 1]) {
+        g.moveTo(side * 22, -20).lineTo(side * 34, -28).moveTo(side * 22, 9).lineTo(side * 37, 15)
+          .moveTo(0, 25).lineTo(side * 21, 36).stroke({ color: 0x4f9186, width: 2 });
+        g.circle(side * 10, 56, 3).fill(0x234750).circle(side * 10 + 0.8, 55, 0.9).fill(0xf0ffe6);
+      }
+      g.moveTo(-5, 67).quadraticCurveTo(0, 70, 5, 67).stroke({ color: 0x568d84, width: 1.4 });
+      return g;
     case 'jelly':
       for (let i = 0; i < 4; i++) {
         const x = -10 + i * 7;
@@ -74,13 +93,19 @@ export class CombatRenderer {
   private items = new Map<string, Container>();
   private lasers = new Map<string, Graphics>();
   private effects = new Map<string, Graphics>();
+  private scoreItems = new Map<string, Graphics>();
+  private arrival = new Graphics();
+  private defeat = new Graphics();
   private laserLayer = new Container();
   private enemyLayer = new Container();
   private bulletLayer = new Container();
   private itemLayer = new Container();
   private effectLayer = new Container();
 
-  constructor(world: Container) { world.addChild(this.laserLayer, this.enemyLayer, this.bulletLayer, this.itemLayer, this.effectLayer); }
+  constructor(world: Container) {
+    world.addChild(this.arrival, this.laserLayer, this.enemyLayer, this.bulletLayer, this.itemLayer, this.effectLayer);
+    this.effectLayer.addChild(this.defeat);
+  }
 
   private createEnemy(enemy: Enemy): EnemyVisual {
     const definition = ENEMY_DEFINITIONS[enemy.kind];
@@ -96,6 +121,42 @@ export class CombatRenderer {
   }
 
   render(state: GameState, alpha: number): void {
+    this.arrival.clear();
+    this.defeat.clear();
+    if (state.stagePhase === 'boss-intro') {
+      const p = Math.min(1, state.bossIntroElapsed / GAME_CONFIG.boss.introDuration);
+      for (let i = 0; i < 3; i++) {
+        const radius = 45 + ((p + i / 3) % 1) * 320;
+        this.arrival.ellipse(360, 155, radius, radius * 0.55)
+          .stroke({ color: 0x9edfcf, width: 2, alpha: (1 - radius / 400) * 0.2 });
+      }
+      this.arrival.circle(360, 100, 110 + p * 120).fill({ color: 0x78cfc7, alpha: Math.sin(p * Math.PI) * 0.06 });
+    }
+    if (state.result && state.boss && state.clearElapsed < GAME_CONFIG.boss.vanishDuration) {
+      const boss = state.enemies.find((enemy) => enemy.id === state.boss?.entityId);
+      if (boss) {
+        const t = state.clearElapsed;
+        const fade = 1 - t / GAME_CONFIG.boss.vanishDuration;
+        const center = boss.position;
+        this.arrival.circle(center.x, center.y, 70 + t * 85)
+          .fill({ color: 0xb7f2df, alpha: 0.11 * fade });
+        for (let i = 0; i < 3; i++) {
+          if (t < i * 0.28) continue;
+          const progress = Math.max(0, (t - i * 0.28) / 1.35);
+          if (progress >= 1) continue;
+          this.defeat.circle(center.x, center.y, 42 + progress * 160)
+            .stroke({ color: i === 0 ? 0xffebbb : 0xaee8df, width: 3 - progress * 2, alpha: (1 - progress) * 0.65 });
+        }
+        for (let i = 0; i < 22; i++) {
+          const angle = i * 2.39996;
+          const distance = 18 + (i % 5) * 8 + t * (45 + i % 4 * 15);
+          const x = center.x + Math.cos(angle) * distance;
+          const y = center.y + Math.sin(angle) * distance * 0.7 - t * (12 + i % 3 * 8);
+          const radius = (i % 4 === 0 ? 4 : 2) * fade;
+          this.defeat.circle(x, y, radius).fill({ color: i % 3 === 0 ? 0xffe8af : 0xc8f4e3, alpha: fade * 0.9 });
+        }
+      }
+    }
     removeMissing(this.enemies, new Set(state.enemies.map((enemy) => enemy.id)), (v) => v.root.destroy({ children: true }));
     for (const enemy of state.enemies) {
       let v = this.enemies.get(enemy.id);
@@ -105,9 +166,25 @@ export class CombatRenderer {
       v.body.rotation = enemy.kind === 'rusher' ? Math.atan2(enemy.velocity.y, enemy.velocity.x) + Math.PI / 2
         : Math.sin(state.elapsed * 2 + enemy.origin.x) * 0.045;
       if (enemy.kind === 'small') v.body.scale.y = 1 + Math.sin(state.elapsed * 3 + enemy.origin.x) * 0.07;
+      if (enemy.kind === 'boss') {
+        const entering = state.stagePhase === 'boss-intro';
+        const p = Math.min(1, state.bossIntroElapsed / GAME_CONFIG.boss.introDuration);
+        v.body.scale.set((entering ? 0.75 + p * 0.25 : 1) * (1 + Math.sin(state.elapsed * 2) * 0.025), entering ? 0.75 + p * 0.25 : 1);
+        v.body.alpha = entering ? 0.2 + p * 0.8 : enemy.invulnerable ? 0.6 + Math.sin(state.elapsed * 9) * 0.12 : 1;
+        if (state.lasers.some((laser) => laser.emitterId === enemy.id)) v.body.rotation = 0;
+        if (state.result && state.boss?.entityId === enemy.id) {
+          const t = state.clearElapsed;
+          const p = Math.min(1, t / GAME_CONFIG.boss.vanishDuration);
+          v.root.position.set(enemy.position.x + Math.sin(t * 35) * 5 * (1 - p), enemy.position.y + p * p * 55);
+          v.root.alpha = Math.max(0, Math.min(1, (GAME_CONFIG.boss.vanishDuration - t) / 1.35));
+          v.body.alpha = 1;
+          v.body.rotation = Math.sin(t * 22) * 0.12 + p * 0.24;
+          v.body.scale.set(1 - p * 0.55, 1 - p * 0.7);
+        } else v.root.alpha = 1;
+      }
       v.flash.alpha = enemy.hitFlash > 0 ? 0.7 : 0;
       v.health.clear();
-      if (enemy.hp < enemy.maxHp) {
+      if (enemy.hp < enemy.maxHp && !(state.result && state.boss?.entityId === enemy.id)) {
         const radius = ENEMY_DEFINITIONS[enemy.kind].visualRadius;
         v.health.roundRect(-18, -radius - 9, 36, 3, 1).fill({ color: 0x142e40, alpha: 0.85 })
           .roundRect(-18, -radius - 9, 36 * enemy.hp / enemy.maxHp, 3, 1).fill(0xe3b7c2);
@@ -137,7 +214,8 @@ export class CombatRenderer {
       if (active) {
         v.moveTo(0, 0).lineTo(dx, dy).stroke({ color: 0xec918b, width: laser.width + 10, alpha: 0.15 })
           .moveTo(0, 0).lineTo(dx, dy).stroke({ color: 0xf3b4a2, width: laser.width, alpha: 0.85 })
-          .moveTo(0, 0).lineTo(dx, dy).stroke({ color: 0xfff6dd, width: laser.width * 0.35 });
+          .moveTo(0, 0).lineTo(dx, dy).stroke({ color: 0xfff6dd, width: laser.width * 0.35 })
+          .circle(0, 0, laser.width).fill({ color: 0xffedc5, alpha: 0.8 });
       } else {
         v.moveTo(0, 0).lineTo(dx, dy).stroke({ color: 0xf7c58d, width: 1, alpha: 0.45 + Math.sin(laser.age * 18) * 0.2 })
           .circle(0, 0, 8 + laser.age / laser.warning * 6).stroke({ color: 0xf4be91, width: 1, alpha: 0.7 });
@@ -156,15 +234,29 @@ export class CombatRenderer {
       const p = interpolate(item.previousPosition, item.position, alpha);
       v.position.set(p.x, p.y); v.scale.set(1 + Math.sin(item.age * 4) * 0.06);
     }
+    removeMissing(this.scoreItems, new Set(state.scoreItems.map((item) => item.id)), (v) => v.destroy());
+    for (const item of state.scoreItems) {
+      let v = this.scoreItems.get(item.id);
+      if (!v) {
+        v = new Graphics().circle(0, 0, 12).fill({ color: 0xffdfa1, alpha: 0.12 })
+          .poly([0, -6, 5, 0, 0, 6, -5, 0]).fill(0xeacb83)
+          .poly([0, -3, 2, 0, 0, 3, -2, 0]).fill(0xfff6cf);
+        this.itemLayer.addChild(v); this.scoreItems.set(item.id, v);
+      }
+      const p = interpolate(item.previousPosition, item.position, alpha);
+      v.position.set(p.x, p.y); v.rotation = Math.sin(item.age * 7) * 0.1;
+      v.scale.set(item.value >= 100 ? 1.5 : 1);
+    }
     removeMissing(this.effects, new Set(state.effects.map((effect) => effect.id)), (v) => v.destroy());
     for (const effect of state.effects) {
       let v = this.effects.get(effect.id);
       if (!v) { v = new Graphics(); this.effectLayer.addChild(v); this.effects.set(effect.id, v); }
       const progress = effect.age / effect.lifetime;
       const explosion = effect.kind === 'explosion';
-      const color = explosion ? 0xffc580 : effect.kind === 'hit' ? 0xffd5c1 : effect.kind === 'heal' ? 0xb8f4b6 : 0xe4c5e2;
+      const phase = effect.kind === 'phase';
+      const color = phase ? 0xffe6a4 : explosion ? 0xffc580 : effect.kind === 'hit' ? 0xffd5c1 : effect.kind === 'heal' ? 0xb8f4b6 : 0xe4c5e2;
       v.position.set(effect.position.x, effect.position.y); v.alpha = 1 - progress;
-      v.clear().circle(0, 0, 8 + progress * (explosion ? GAME_CONFIG.effects.explosionRadius : 32)).stroke({ color, width: explosion ? 2.5 : 1.6 });
+      v.clear().circle(0, 0, 8 + progress * (phase ? 160 : explosion ? GAME_CONFIG.effects.explosionRadius : 32)).stroke({ color, width: phase || explosion ? 2.5 : 1.6 });
       if (explosion) v.circle(0, 0, 14 * (1 - progress)).fill({ color: 0xfff0ce, alpha: 0.8 });
       const particles = explosion ? 10 : 7;
       for (let i = 0; i < particles; i++) {

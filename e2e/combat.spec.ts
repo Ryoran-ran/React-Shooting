@@ -4,6 +4,7 @@ async function openCombat(page: Page) {
   await page.clock.install();
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'リセット', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: '戦闘練習', exact: true }).click();
   if (await page.getByRole('dialog', { name: 'ポーズ中' }).isVisible()) {
     await page.getByRole('button', { name: '泳ぎを再開 →' }).click();
   }
