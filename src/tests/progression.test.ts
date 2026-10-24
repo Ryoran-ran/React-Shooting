@@ -72,7 +72,47 @@ describe('a complete stage', () => {
     expect(game.state.field).toEqual(stageTwo.field);
     expect(game.state.view.scale).toEqual({ x: 1, y: 1 });
     game.reset();
-    expect(game.state.gimmick).toEqual({ phase: 'idle', amount: 0 });
+    expect(game.state.gimmick).toEqual({ phase: 'idle', amount: 0, activeCount: 0, events: [] });
+  });
+  it('combines simultaneous shrink events regardless of their list order', () => {
+    const first = { ...stageTwo.gimmicks[0] };
+    const second = { ...stageTwo.gimmicks[1], at: first.at };
+    const makeGame = (reverse: boolean) => {
+      const definition: StageDefinition = { ...stageTwo,
+        combat: { ...stageTwo.combat, spawns: [] },
+        gimmicks: reverse ? [second, first] : [first, second],
+      };
+      return new Game(definition, 'stage');
+    };
+    const game = makeGame(false);
+    const reversed = makeGame(true);
+    run(game, 19); run(reversed, 19);
+    expect(game.state.gimmick.activeCount).toBe(2);
+    expect(game.state.gimmick.events.map((event) => event.id)).toEqual([first.id, second.id]);
+    expect(game.state.field).toEqual({ x: 90, y: 90, width: 540, height: 540 });
+    expect(game.state.view.scale.x).toBeCloseTo(.82 * .82);
+    expect(reversed.state.field).toEqual(game.state.field);
+    expect(reversed.state.view.scale.x).toBeCloseTo(game.state.view.scale.x);
+    run(game, 7);
+    expect(game.state.gimmick.activeCount).toBe(0);
+    expect(game.state.field).toEqual(stageTwo.field);
+  });
+  it('keeps one shrink active while another warns, then removes each contribution separately', () => {
+    const definition: StageDefinition = { ...stageTwo,
+      combat: { ...stageTwo.combat, spawns: [] },
+      gimmicks: [stageTwo.gimmicks[0], { ...stageTwo.gimmicks[1], at: 19 }],
+    };
+    const game = new Game(definition, 'stage');
+    run(game, 19.1);
+    expect(game.state.gimmick.events.map((event) => event.phase)).toEqual(['active', 'warning']);
+    expect(game.state.field.x).toBe(45);
+    expect(game.state.eventMessage).toContain('予兆');
+    run(game, 7);
+    expect(game.state.gimmick.events.map((event) => event.id)).toEqual([definition.gimmicks[1].id]);
+    expect(game.state.field.x).toBe(45);
+    run(game, 6);
+    expect(game.state.gimmick.events).toEqual([]);
+    expect(game.state.field).toEqual(stageTwo.field);
   });
   it('offers a distinct shallow-water course and beach boss, then clears with stage-two results', () => {
     expect(STAGES.map((stage) => stage.id)).toEqual(['stage-01', 'stage-02']);

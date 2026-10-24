@@ -40,9 +40,9 @@ export class Game {
       runId: ++this.runId, stage: mode === 'stage' && this.definition.progression
         ? { ...this.definition.progression, id: this.definition.id, name: this.definition.name,
           scene: (this.definition as StageDefinition).scene,
-          field: { ...this.definition.field }, gimmick: (this.definition as StageDefinition).gimmick } : null,
+          field: { ...this.definition.field }, gimmicks: structuredClone((this.definition as StageDefinition).gimmicks) } : null,
       stagePhase: 'waves', bossIntroElapsed: 0, boss: null, score: 0, result: null, clearElapsed: 0,
-      gimmick: { phase: 'idle', amount: 0 },
+      gimmick: { phase: 'idle', amount: 0, activeCount: 0, events: [] },
       elapsed: 0, paused: false, field: { ...this.definition.field }, view: createDefaultView(),
       player: createPlayer(x, y), bullets: [], targets: mode === 'practice' ? this.createTargets() : [],
       targetsEnabled: true, targetsMoving: true, shotsFired: 0,

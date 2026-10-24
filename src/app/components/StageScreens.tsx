@@ -1,5 +1,6 @@
 import type { HudSnapshot } from '../../game/core/GameState';
-import { STAGES, type StageDefinition } from '../../game/stages/stages';
+import type { StageDefinition } from '../../game/stages/stages';
+import { getPlayableStages } from '../../game/stages/stageDraft';
 import type { SaveData } from '../../game/persistence/records';
 import { DolphinIcon } from './Icons';
 import { formatTime } from './Hud';
@@ -14,21 +15,22 @@ interface Props {
   onTitle: () => void;
   onStart: (stage: StageDefinition) => void;
   onPractice: (combat: boolean) => void;
+  onEditor: () => void;
   onRetry: () => void;
 }
 
-export function StageScreens({ screen, hud, records, storageAvailable, ready, onSelect, onTitle, onStart, onPractice, onRetry }: Props) {
+export function StageScreens({ screen, hud, records, storageAvailable, ready, onSelect, onTitle, onStart, onPractice, onEditor, onRetry }: Props) {
   if (screen === 'title') return <div className="screen-overlay title-screen" role="dialog" aria-label="タイトル">
     <span className="eyebrow">A SMALL DOLPHIN. AN ENDLESS BLUE.</span>
     <div className="title-emblem"><DolphinIcon /><span /><i /></div>
     <h2>BLUE<br /><em>CURRENT</em></h2><p className="title-tagline">イルカと、青の向こうへ。</p>
     <button data-menu className="primary-button" disabled={!ready} onClick={onSelect}>冒険をはじめる <span>→</span></button>
-    <div className="title-practice"><button data-menu disabled={!ready} onClick={() => onPractice(true)}>戦闘練習<span aria-hidden="true">→</span></button><button data-menu disabled={!ready} onClick={() => onPractice(false)}>操作練習<span aria-hidden="true">→</span></button></div>
+    <div className="title-practice"><button data-menu disabled={!ready} onClick={() => onPractice(true)}>戦闘練習<span aria-hidden="true">→</span></button><button data-menu disabled={!ready} onClick={() => onPractice(false)}>操作練習<span aria-hidden="true">→</span></button><button data-menu onClick={onEditor}>STAGE EDITOR <span aria-hidden="true">&rarr;</span></button></div>
     <span className="menu-help">↑↓ 選択 · Enter / Z / A・× 決定</span>
   </div>;
   if (screen === 'select') return <div className="screen-overlay select-screen" role="dialog" aria-label="ステージ選択">
     <span className="eyebrow">CHOOSE YOUR CURRENT</span><h2>どこへ泳ごう。</h2><p>好きな海から、冒険をはじめよう。</p>
-    <div className="stage-list">{STAGES.map((stage, index) => {
+    <div className="stage-list">{getPlayableStages().map((stage, index) => {
       const record = records.stages[stage.id];
       return <button data-menu className="stage-choice" key={stage.id} onClick={() => onStart(stage)}>
         <span className="stage-choice-top"><span>STAGE {String(index + 1).padStart(2, '0')}</span><span>{record?.cleared ? `${record.bestRank} · CLEAR` : 'NEW VOYAGE'}</span></span>

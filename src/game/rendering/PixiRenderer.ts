@@ -253,7 +253,7 @@ export class PixiRenderer {
     this.fieldOverlay.clear();
     this.screenFrame.clear();
     if (state.gimmick.phase !== 'idle') {
-      const { amount, phase } = state.gimmick;
+      const { amount } = state.gimmick;
       const f = state.field;
       const shade = amount * 0.38;
       if (shade > 0) {
@@ -264,10 +264,11 @@ export class PixiRenderer {
         this.fieldOverlay.rect(f.x, f.y, f.width, f.height)
           .stroke({ color: 0xc6e2bc, width: 1.5, alpha: amount * 0.65 });
       }
-      const edge = phase === 'warning' ? 0.35 + Math.sin(t * 12) * 0.2 : 0.55;
+      const warning = state.gimmick.events.some((event) => event.phase === 'warning');
+      const edge = warning ? 0.35 + Math.sin(t * 12) * 0.2 : 0.55;
       const x = state.view.offset.x, y = state.view.offset.y;
       this.screenFrame.rect(x + 1, y + 1, 718 * state.view.scale.x, 718 * state.view.scale.y)
-        .stroke({ color: phase === 'warning' ? 0xffd9a1 : 0xb9e6d1, width: 2, alpha: edge });
+        .stroke({ color: warning ? 0xffd9a1 : 0xb9e6d1, width: 2, alpha: edge });
     }
     for (const bubble of this.bubbles) {
       bubble.graphic.alpha = 1 - this.beach.alpha * 0.85;

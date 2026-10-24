@@ -2,6 +2,7 @@ import type { BossDefinition } from '../bosses/lagoonGuardian';
 import { lagoonGuardian } from '../bosses/lagoonGuardian';
 import { shoreCrab } from '../bosses/shoreCrab';
 import type { EnemyAttack, EnemySpawn } from '../entities/Enemy';
+import type { GimmickEvent } from './gimmicks';
 import { trainingGround, type TrainingDefinition } from './trainingGround';
 
 export interface StageProgression {
@@ -12,8 +13,7 @@ export interface StageProgression {
 
 export interface StageDefinition extends TrainingDefinition {
   description: string;
-  gimmick?: { kind: 'screen-shrink'; inset: number; scale: number;
-    windows: { at: number; warning: number; contract: number; hold: number; recover: number }[] };
+  gimmicks: GimmickEvent[];
   scene: {
     course: 'lagoon' | 'shallows'; boss: 'lagoon' | 'beach';
     label: string; bossLabel: string; depth: string; intro: string; clear: string;
@@ -23,6 +23,7 @@ export interface StageDefinition extends TrainingDefinition {
 
 export const stageOne: StageDefinition = {
   ...trainingGround, id: 'stage-01', name: 'サンライト・ラグーン',
+  gimmicks: [],
   description: '木漏れ日の浅瀬を抜けて、ラグーンの守り手に会いにいこう。',
   scene: { course: 'lagoon', boss: 'lagoon', label: 'SUNLIGHT LAGOON', bossLabel: 'GUARDIAN BATTLE',
     depth: '012', intro: 'ラグーンの守り手、接近。', clear: 'ラグーンの先へ。' },
@@ -97,10 +98,12 @@ const shallowSpawns: EnemySpawn[] = [
 export const stageTwo: StageDefinition = {
   ...trainingGround, id: 'stage-02', name: 'ひかりの浅瀬',
   description: '砂の波紋が光る浅瀬を抜け、砂浜の番人に挑もう。',
-  gimmick: { kind: 'screen-shrink', inset: 45, scale: 0.82, windows: [
-    { at: 14, warning: 1.8, contract: 2, hold: 6, recover: 2 },
-    { at: 32, warning: 1.8, contract: 2, hold: 6, recover: 2 },
-  ] },
+  gimmicks: [
+    { id: 'stage-02-shrink-1', kind: 'screen-shrink', inset: 45, scale: 0.82,
+      at: 14, warning: 1.8, contract: 2, hold: 6, recover: 2 },
+    { id: 'stage-02-shrink-2', kind: 'screen-shrink', inset: 45, scale: 0.82,
+      at: 32, warning: 1.8, contract: 2, hold: 6, recover: 2 },
+  ],
   scene: { course: 'shallows', boss: 'beach', label: 'SHIMMERING SHALLOWS', bossLabel: 'SANDY SHORE',
     depth: '003', intro: '砂浜の番人、接近。', clear: '波打ちぎわを越えて。' },
   combat: { cycleDuration: 55, seed: 82461, spawns: shallowSpawns },

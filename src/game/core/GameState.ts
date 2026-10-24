@@ -15,8 +15,9 @@ export type GameMode = 'combat' | 'practice' | 'stage';
 
 export interface GameState {
   runId: number;
-  stage: (StageProgression & Pick<StageDefinition, 'id' | 'name' | 'scene' | 'field' | 'gimmick'>) | null;
-  gimmick: { phase: GimmickPhase; amount: number };
+  stage: (StageProgression & Pick<StageDefinition, 'id' | 'name' | 'scene' | 'field' | 'gimmicks'>) | null;
+  gimmick: { phase: GimmickPhase; amount: number; activeCount: number;
+    events: { id: string; phase: GimmickPhase; amount: number }[] };
   stagePhase: 'waves' | 'boss-intro' | 'boss' | 'clear';
   bossIntroElapsed: number;
   boss: { entityId: string; phaseIndex: number; phaseElapsed: number; transitionFor: number; entering: boolean;
@@ -110,7 +111,7 @@ export function getHudSnapshot(state: GameState): HudSnapshot {
     runId: state.runId, stageId: state.stage?.id ?? '', stageName: state.stage?.name ?? 'サンライト・ラグーン',
     stageScene: state.stage?.scene ?? null,
     stageBossName: state.stage?.boss.name ?? '',
-    gimmick: { ...state.gimmick },
+    gimmick: { ...state.gimmick, events: state.gimmick.events.map((event) => ({ ...event })) },
     stagePhase: state.stagePhase, score: state.score, result: state.result,
     bossIntroProgress: Math.min(1, state.bossIntroElapsed / GAME_CONFIG.boss.introDuration),
     clearCueReady: Boolean(state.result) && state.clearElapsed >= GAME_CONFIG.boss.clearCueDelay,

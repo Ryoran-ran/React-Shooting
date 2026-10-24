@@ -86,7 +86,7 @@ export function App() {
             </div></div>}
             {screen === 'play' && hud.clearCueReady && !hud.clearReady && <div className="clear-banner" role="status" aria-label="ステージクリア演出"><small>GUARDIAN DEFEATED · {hud.stageName}</small><span>STAGE CLEAR</span><strong>{hud.stageScene?.clear}</strong></div>}
             {screen === 'play' && <BossCue hud={hud} />}
-            <StageScreens screen={screen} hud={hud} records={records} storageAvailable={storageAvailable} ready={Boolean(controls)} onSelect={selectStage} onTitle={() => setScreen('title')} onStart={startStage} onPractice={practice} onRetry={() => { controls?.reset(); blur(); }} />
+            <StageScreens screen={screen} hud={hud} records={records} storageAvailable={storageAvailable} ready={Boolean(controls)} onSelect={selectStage} onTitle={() => setScreen('title')} onStart={startStage} onPractice={practice} onEditor={() => window.location.assign("/editor")} onRetry={() => { controls?.reset(); blur(); }} />
           </section>
           {showInfo && <RightHud hud={hud} controls={controls} controller={controller} />}
         </div>

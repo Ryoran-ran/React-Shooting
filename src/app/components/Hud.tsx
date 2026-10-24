@@ -75,7 +75,7 @@ export function RightHud({ hud, controls, controller }: HudProps) {
     <div className={`gimmick-row ${hud.gimmick.phase}`}><span className="eyebrow">GIMMICK</span><span>{hud.gimmick.phase === 'warning' ? '縮小予兆'
       : hud.gimmick.phase === 'contracting' ? '画面縮小中'
       : hud.gimmick.phase === 'active' ? '縮小中'
-      : hud.gimmick.phase === 'recovering' ? '復帰中' : 'NONE'} <i>{hud.gimmick.phase === 'idle' ? '—' : '⌁'}</i></span></div>
+      : hud.gimmick.phase === 'recovering' ? '復帰中' : 'NONE'}{hud.gimmick.phase !== 'warning' && hud.gimmick.events.some((event) => event.phase === 'warning') ? '＋予兆' : ''}{hud.gimmick.activeCount > 1 ? ` ×${hud.gimmick.activeCount}` : ''} <i>{hud.gimmick.phase === 'idle' ? '—' : '⌁'}</i></span></div>
     {stage && hud.boss && <div className="boss-card"><div className="stat-heading"><span className="eyebrow">BOSS HP</span><span>{hud.boss.hp} / {hud.boss.maxHp}</span></div><div className="boss-health" role="progressbar" aria-label="ボスHP" aria-valuemin={0} aria-valuemax={hud.boss.maxHp} aria-valuenow={hud.boss.hp}><span style={{ width: `${hud.boss.hp / hud.boss.maxHp * 100}%` }} /></div><p>{bossState}</p></div>}
     <div className={`shot-card ${hud.slow ? 'homing' : ''}`}>
       <div className="shot-card-label"><span className="eyebrow">SHOT MODE</span><span className="mode-dot" /></div>
