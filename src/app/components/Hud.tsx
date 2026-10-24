@@ -64,15 +64,18 @@ export function RightHud({ hud, controls, controller }: HudProps) {
   const stage = hud.mode === 'stage';
   const bossState = hud.boss ? hud.boss.pendingPhase !== null ? `アイテム回収中 → PHASE ${hud.boss.pendingPhase}`
     : `${hud.boss.invulnerable ? '登場準備 · ' : hud.boss.laserActive ? 'レーザー · ' : ''}PHASE ${hud.boss.phase}/${hud.boss.phaseCount} · ${hud.boss.phaseName}`
-    : hud.result ? 'ラグーンを突破しました' : 'ラグーンの守り手が待っています';
+    : hud.result ? `${hud.stageName}を突破しました` : `${hud.stageBossName}が待っています`;
   return <aside className={`info-panel right-panel ${stage ? 'stage-panel' : ''}`} data-state={panelState(hud)} aria-label="ステージ情報">
-    <div className="pilot-heading"><span className="eyebrow">EXPLORE THE BLUE</span><span className="tiny-code">01</span></div>
-    <div className="stage-heading"><span className="stage-number">01</span><div><span className="eyebrow">{stage ? 'STAGE' : 'TRAINING AREA'}</span><h2>{hud.stageName}</h2></div></div>
+    <div className="pilot-heading"><span className="eyebrow">EXPLORE THE BLUE</span><span className="tiny-code">{hud.stageId ? hud.stageId.slice(-2) : '01'}</span></div>
+    <div className="stage-heading"><span className="stage-number">{hud.stageId ? hud.stageId.slice(-2) : '01'}</span><div><span className="eyebrow">{stage ? 'STAGE' : 'TRAINING AREA'}</span><h2>{hud.stageName}</h2></div></div>
     <div className="free-swim"><span className="live-dot" />{stage ? hud.result ? 'STAGE CLEAR' : hud.stagePhase === 'boss-intro' ? 'BOSS APPROACH' : hud.boss && hud.boss.pendingPhase !== null ? 'PHASE SHIFT' : hud.boss ? 'BOSS BATTLE' : 'VOYAGE' : hud.mode === 'combat' ? 'COMBAT TRAINING' : 'FREE SWIM'}<span>{stage ? `${Math.floor(hud.progress)}%` : hud.mode === 'combat' ? `WAVE ${String(hud.cycle).padStart(2, '0')}` : '制限時間なし'}</span></div>
     {stage && <div className="stage-progress" role="progressbar" aria-label="ステージ進行率" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(hud.progress)}><span style={{ width: `${hud.progress}%` }} /></div>}
     <div className="panel-rule" />
     <div className="time-heading"><span className="eyebrow">TIME</span><span className="time-number">{formatTime(hud.elapsed)}</span></div>
-    <div className="gimmick-row"><span className="eyebrow">GIMMICK</span><span>NONE <i>—</i></span></div>
+    <div className={`gimmick-row ${hud.gimmick.phase}`}><span className="eyebrow">GIMMICK</span><span>{hud.gimmick.phase === 'warning' ? '縮小予兆'
+      : hud.gimmick.phase === 'contracting' ? '画面縮小中'
+      : hud.gimmick.phase === 'active' ? '縮小中'
+      : hud.gimmick.phase === 'recovering' ? '復帰中' : 'NONE'} <i>{hud.gimmick.phase === 'idle' ? '—' : '⌁'}</i></span></div>
     {stage && hud.boss && <div className="boss-card"><div className="stat-heading"><span className="eyebrow">BOSS HP</span><span>{hud.boss.hp} / {hud.boss.maxHp}</span></div><div className="boss-health" role="progressbar" aria-label="ボスHP" aria-valuemin={0} aria-valuemax={hud.boss.maxHp} aria-valuenow={hud.boss.hp}><span style={{ width: `${hud.boss.hp / hud.boss.maxHp * 100}%` }} /></div><p>{bossState}</p></div>}
     <div className={`shot-card ${hud.slow ? 'homing' : ''}`}>
       <div className="shot-card-label"><span className="eyebrow">SHOT MODE</span><span className="mode-dot" /></div>

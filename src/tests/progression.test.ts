@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../game/core/Game';
 import { getHudSnapshot } from '../game/core/GameState';
-import { stageOne, type StageDefinition } from '../game/stages/stages';
+import { stageOne, stageTwo, STAGES, type StageDefinition } from '../game/stages/stages';
 import { IDLE_INPUT } from '../game/systems/InputSystem';
 import { createEnemy } from '../game/systems/SpawnSystem';
 import { resolveBoss } from '../game/systems/StageSystem';
 import { resolveDefeats } from '../game/systems/DropSystem';
 import { calculateResult } from '../game/systems/ScoreSystem';
 import { GAME_CONFIG } from '../game/config';
+import { worldToScreen, screenToWorld } from '../game/core/coordinates';
 import { RecordStore, readRecords, SAVE_KEY, type RecordStorage } from '../game/persistence/records';
 
 const step = 1 / 60;
@@ -44,6 +45,61 @@ function memory() {
 }
 
 describe('a complete stage', () => {
+  it('warns, contracts View and Field, then restores them without moving world entities', () => {
+    const game = new Game(stageTwo, 'stage');
+    game.state.player.invulnerableFor = 100;
+    game.state.player.position.x = 22;
+    run(game, 14.2);
+    expect(game.state.gimmick.phase).toBe('warning');
+    expect(game.state.field.width).toBe(720);
+    expect(game.state.view.scale.x).toBe(1);
+    run(game, 2.6);
+    expect(game.state.gimmick.phase).toBe('contracting');
+    expect(game.state.field.width).toBeLessThan(720);
+    expect(game.state.player.position.x).toBeGreaterThan(22);
+    run(game, 1.1);
+    expect(game.state.gimmick.phase).toBe('active');
+    expect(game.state.field).toEqual({ x: 45, y: 45, width: 630, height: 630 });
+    expect(game.state.view.scale).toEqual({ x: 0.82, y: 0.82 });
+    const point = { x: 220, y: 310 };
+    expect(screenToWorld(worldToScreen(point, game.state.view), game.state.view).x).toBeCloseTo(point.x);
+    expect(screenToWorld(worldToScreen(point, game.state.view), game.state.view).y).toBeCloseTo(point.y);
+    const frozen = structuredClone(game.state.gimmick);
+    game.setPaused(true); run(game, 2);
+    expect(game.state.gimmick).toEqual(frozen);
+    game.setPaused(false); run(game, 9);
+    expect(game.state.gimmick.phase).toBe('idle');
+    expect(game.state.field).toEqual(stageTwo.field);
+    expect(game.state.view.scale).toEqual({ x: 1, y: 1 });
+    game.reset();
+    expect(game.state.gimmick).toEqual({ phase: 'idle', amount: 0 });
+  });
+  it('offers a distinct shallow-water course and beach boss, then clears with stage-two results', () => {
+    expect(STAGES.map((stage) => stage.id)).toEqual(['stage-01', 'stage-02']);
+    expect(stageTwo.scene).toMatchObject({ course: 'shallows', boss: 'beach' });
+    expect(stageTwo.combat.spawns.length).toBeGreaterThan(15);
+    expect(stageTwo.combat.spawns.every((spawn) => spawn.position.x < 0 || spawn.position.x > 720)).toBe(true);
+    const turretSpawn = stageTwo.combat.spawns.find((spawn) => spawn.kind === 'turret')!;
+    expect(createEnemy(turretSpawn, nextId()).attacks?.[0]).toMatchObject({ kind: 'aimed', count: 5 });
+    expect(stageOne.combat.spawns.find((spawn) => spawn.kind === 'turret')?.attacks).toBeUndefined();
+    expect(stageTwo.combat.spawns.map((spawn) => spawn.time)).toEqual(
+      [...stageTwo.combat.spawns.map((spawn) => spawn.time)].sort((a, b) => a - b));
+    const game = new Game(stageTwo, 'stage');
+    expect(getHudSnapshot(game.state).stageBossName).toBe('砂浜の番人・ヤドカリ');
+    game.state.enemyAttacksEnabled = false;
+    for (let i = 0; i < 60 * 62; i++) { game.state.player.invulnerableFor = 1; game.update(step, IDLE_INPUT); }
+    expect(game.state.spawnCursor).toBe(stageTwo.combat.spawns.length);
+    expect(game.state.stagePhase).toBe('boss');
+    const guardian = game.state.enemies.find((enemy) => enemy.kind === 'boss')!;
+    expect(guardian.appearance).toBe('hermit-crab');
+    expect(getHudSnapshot(game.state).stageScene?.bossLabel).toBe('SANDY SHORE');
+    game.state.score = 5000; guardian.hp = 0; game.update(step, IDLE_INPUT);
+    expect(game.state.result?.stageId).toBe('stage-02');
+    expect(game.state.result?.rank).toBe('S');
+    game.reset();
+    expect(game.state.stage?.id).toBe('stage-02');
+    expect(game.state.spawnCursor).toBe(0);
+  });
   it('plays the finite timeline once, arrives at the boss and resets the same stage on retry', () => {
     const game = new Game(stageOne, 'stage');
     game.state.enemyAttacksEnabled = false;
@@ -188,6 +244,16 @@ describe('a complete stage', () => {
       const destinationY = 550 + Math.sin((game.state.elapsed - offset) * 0.65 * 0.7) * 50;
       const y = Math.max(-1, Math.min(1, (destinationY - game.state.player.position.y) / 8));
       game.update(step, { ...IDLE_INPUT, x, y, fire: game.state.elapsed >= offset, slow: true });
+    }
+    expect(game.state.result, `HP ${game.state.player.hp}, time ${game.state.elapsed}, boss HP ${getHudSnapshot(game.state).boss?.hp}`).not.toBeNull();
+  });
+  it('can finish stage two using regular movement and shots', () => {
+    const game = new Game(stageTwo, 'stage');
+    for (let i = 0; i < 60 * 180 && !game.state.gameOver && !game.state.result; i++) {
+      const destination = 360 + Math.sin(game.state.elapsed) * 100;
+      const x = Math.max(-1, Math.min(1, (destination - game.state.player.position.x) / 8));
+      const y = Math.max(-1, Math.min(1, (630 - game.state.player.position.y) / 8));
+      game.update(step, { ...IDLE_INPUT, x, y, fire: true, slow: true });
     }
     expect(game.state.result, `HP ${game.state.player.hp}, time ${game.state.elapsed}, boss HP ${getHudSnapshot(game.state).boss?.hp}`).not.toBeNull();
   });

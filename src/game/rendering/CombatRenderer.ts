@@ -33,6 +33,30 @@ function drawCreature(appearance: EnemyAppearance): Graphics {
       }
       g.moveTo(-5, 67).quadraticCurveTo(0, 70, 5, 67).stroke({ color: 0x568d84, width: 1.4 });
       return g;
+    case 'hermit-crab':
+      // A striped shell, paired claws and walking legs keep the beach guardian distinct from the turtle.
+      g.ellipse(0, 10, 92, 66).fill({ color: 0xffdba7, alpha: 0.04 });
+      for (const side of [-1, 1]) {
+        g.moveTo(side * 28, 10).quadraticCurveTo(side * 70, 6, side * 82, -20)
+          .quadraticCurveTo(side * 77, -39, side * 58, -34).quadraticCurveTo(side * 55, -15, side * 65, -14)
+          .quadraticCurveTo(side * 48, 3, side * 30, 20).fill(0xd68d72);
+        g.ellipse(side * 69, -25, 17, 15).fill(0xf4b18c);
+        g.moveTo(side * 34, 33).quadraticCurveTo(side * 52, 54, side * 67, 56)
+          .moveTo(side * 23, 40).quadraticCurveTo(side * 36, 62, side * 47, 69)
+          .stroke({ color: 0xcc866e, width: 8 });
+      }
+      g.ellipse(0, 5, 43, 48).fill(0xbb826a)
+        .ellipse(0, -2, 38, 42).fill(0xe8be8c)
+        .moveTo(-30, -23).quadraticCurveTo(0, -47, 30, -23).stroke({ color: 0xffe0ae, width: 5 })
+        .moveTo(-34, -8).quadraticCurveTo(0, -28, 34, -8).stroke({ color: 0xc99272, width: 5 })
+        .moveTo(-30, 11).quadraticCurveTo(0, -4, 30, 11).stroke({ color: 0xffddb1, width: 5 })
+        .moveTo(-20, 29).quadraticCurveTo(0, 17, 20, 29).stroke({ color: 0xc99272, width: 4 });
+      for (const side of [-1, 1]) {
+        g.moveTo(side * 13, 37).quadraticCurveTo(side * 18, 52, side * 15, 57)
+          .stroke({ color: 0xd98571, width: 6 });
+        g.circle(side * 15, 57, 5).fill(0xf1aa83).circle(side * 15, 57, 2.5).fill(0x294755);
+      }
+      return g;
     case 'jelly':
       for (let i = 0; i < 4; i++) {
         const x = -10 + i * 7;
@@ -114,7 +138,7 @@ export class CombatRenderer {
     const halo = new Graphics().circle(0, 0, definition.visualRadius + 10).fill({ color: 0xdcaabf, alpha: 0.035 });
     const flash = new Graphics().circle(0, 0, definition.hitRadius).fill({ color: 0xfff5dd, alpha: 0.45 });
     const health = new Graphics();
-    body.addChild(halo, drawCreature(definition.appearance), flash);
+    body.addChild(halo, drawCreature(enemy.appearance ?? definition.appearance), flash);
     root.addChild(body, health);
     this.enemyLayer.addChild(root);
     return { root, body, health, flash };

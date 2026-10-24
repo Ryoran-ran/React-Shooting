@@ -22,6 +22,11 @@ export class PixiRenderer {
   private ripples = new Graphics();
   private shield = new Graphics();
   private combat!: CombatRenderer;
+  private scenery = new Graphics();
+  private beach = new Graphics();
+  private fieldOverlay = new Graphics();
+  private screenFrame = new Graphics();
+  private sceneryKey = '';
   private bubbles: { graphic: Graphics; x: number; y: number; speed: number; phase: number }[] = [];
   private bullets = new Map<string, Container>();
   private targets = new Map<string, TargetVisual>();
@@ -47,25 +52,68 @@ export class PixiRenderer {
     this.app.canvas.setAttribute('aria-label', 'イルカの操作フィールド');
     this.app.canvas.setAttribute('role', 'img');
     this.app.stage.eventMode = 'none';
+    this.app.stage.addChild(new Graphics().rect(0, 0, 720, 720).fill(0x0a2631));
     this.createOcean();
     this.app.stage.addChild(this.world);
     const mask = new Graphics().rect(0, 0, 720, 720).fill(0xffffff);
     this.app.stage.addChild(mask);
     this.world.mask = mask;
+    this.app.stage.addChild(this.screenFrame);
     this.combat = new CombatRenderer(this.world);
     this.createDolphin();
     return true;
   }
 
   private createOcean(): void {
-    const sea = new Graphics();
-    // A restrained vertical gradient, drawn once rather than rebuilt every frame.
+    this.world.addChild(this.scenery, this.beach);
+    this.drawScenery('lagoon');
+    this.drawBeach();
+    this.beach.alpha = 0;
+
+    for (let i = 0; i < 34; i++) {
+      // Deterministic decoration makes resets and screenshots reproducible.
+      const x = (i * 137 + 53) % 720;
+      const y = (i * 97 + 61) % 720;
+      const radius = i % 6 === 0 ? 4.5 : i % 3 === 0 ? 2 : 1;
+      const graphic = new Graphics().circle(0, 0, radius).stroke({ color: 0x9cdddd, alpha: i % 6 === 0 ? 0.22 : 0.16, width: 1 });
+      if (radius > 2) graphic.circle(-1, -1.4, 0.8).fill({ color: 0xe0fffa, alpha: 0.24 });
+      this.world.addChild(graphic);
+      this.bubbles.push({ graphic, x, y, speed: 9 + i % 7 * 2, phase: i * 1.7 });
+    }
+    this.world.addChild(this.fieldOverlay);
+  }
+
+  private drawScenery(key: 'lagoon' | 'shallows'): void {
+    if (this.sceneryKey === key) return;
+    this.sceneryKey = key;
+    const sea = this.scenery;
+    sea.clear();
+    // Rebuild only when a different stage starts, not every animation frame.
     for (let i = 0; i < 60; i++) {
       const t = i / 59;
-      const r = Math.round(10 - t * 5);
-      const g = Math.round(59 - t * 27);
-      const b = Math.round(75 - t * 26);
+      const r = Math.round(key === 'lagoon' ? 10 - t * 5 : 29 - t * 14);
+      const g = Math.round(key === 'lagoon' ? 59 - t * 27 : 107 - t * 38);
+      const b = Math.round(key === 'lagoon' ? 75 - t * 26 : 103 - t * 26);
       sea.rect(0, i * 12, 720, 13).fill((r << 16) | (g << 8) | b);
+    }
+    if (key === 'shallows') {
+      sea.poly([0, 94, 180, 27, 370, 175, 720, 89, 720, 230, 458, 266, 211, 177, 0, 250])
+        .fill({ color: 0xe6d99f, alpha: 0.085 });
+      sea.poly([0, 395, 165, 319, 380, 450, 720, 347, 720, 496, 453, 531, 190, 432, 0, 520])
+        .fill({ color: 0xe7d8a0, alpha: 0.06 });
+      for (let row = 0; row < 8; row++) for (let col = 0; col < 6; col++) {
+        const x = col * 145 - 35 + row % 2 * 48;
+        const y = row * 101 + 45;
+        sea.moveTo(x, y).quadraticCurveTo(x + 31, y - 10, x + 65, y + 1)
+          .stroke({ color: 0xf4e8bb, width: 2, alpha: 0.095 });
+      }
+      for (const x of [33, 677]) for (let y = 120; y < 700; y += 190) {
+        const side = x < 360 ? 1 : -1;
+        sea.moveTo(x, y + 33).quadraticCurveTo(x + side * 10, y + 1, x + side * 3, y - 28)
+          .moveTo(x, y + 15).quadraticCurveTo(x + side * 24, y - 10, x + side * 17, y - 22)
+          .stroke({ color: 0x87bf9a, width: 4, alpha: 0.21 });
+      }
+      return;
     }
     sea.circle(360, -80, 400).fill({ color: 0x3cc1c6, alpha: 0.035 });
     sea.poly([70, 0, 145, 0, 470, 720, 280, 720]).fill({ color: 0xb8f5db, alpha: 0.025 });
@@ -75,17 +123,28 @@ export class PixiRenderer {
     for (let y = 0; y <= 720; y += 60) sea.moveTo(0, y).lineTo(720, y).stroke({ color: 0xa4d9df, width: 1, alpha: 0.025 });
     sea.circle(360, 360, 245).stroke({ color: 0x8bbbc6, width: 1, alpha: 0.045 });
     sea.circle(360, 360, 290).stroke({ color: 0x8bbbc6, width: 1, alpha: 0.025 });
-    this.app.stage.addChild(sea);
+  }
 
-    for (let i = 0; i < 34; i++) {
-      // Deterministic decoration makes resets and screenshots reproducible.
-      const x = (i * 137 + 53) % 720;
-      const y = (i * 97 + 61) % 720;
-      const radius = i % 6 === 0 ? 4.5 : i % 3 === 0 ? 2 : 1;
-      const graphic = new Graphics().circle(0, 0, radius).stroke({ color: 0x9cdddd, alpha: i % 6 === 0 ? 0.22 : 0.16, width: 1 });
-      if (radius > 2) graphic.circle(-1, -1.4, 0.8).fill({ color: 0xe0fffa, alpha: 0.24 });
-      this.app.stage.addChild(graphic);
-      this.bubbles.push({ graphic, x, y, speed: 9 + i % 7 * 2, phase: i * 1.7 });
+  private drawBeach(): void {
+    const sand = this.beach;
+    for (let i = 0; i < 60; i++) {
+      const t = i / 59;
+      const r = Math.round(126 - t * 42), g = Math.round(110 - t * 42), b = Math.round(83 - t * 29);
+      sand.rect(0, i * 12, 720, 13).fill((r << 16) | (g << 8) | b);
+    }
+    sand.poly([0, 0, 720, 0, 720, 95, 620, 109, 490, 83, 330, 107, 190, 76, 0, 98])
+      .fill({ color: 0x2b858b, alpha: 0.5 });
+    sand.moveTo(0, 98).bezierCurveTo(140, 59, 230, 110, 355, 94)
+      .bezierCurveTo(500, 68, 590, 123, 720, 94).stroke({ color: 0xf4e5bb, width: 5, alpha: 0.55 });
+    for (let row = 0; row < 9; row++) for (let col = 0; col < 5; col++) {
+      const x = col * 164 + (row % 2) * 47 - 42, y = row * 76 + 140;
+      sand.moveTo(x, y).quadraticCurveTo(x + 38, y - 9, x + 79, y + 2)
+        .stroke({ color: 0xf6dba8, width: 2, alpha: 0.11 });
+    }
+    for (const [x, y] of [[57, 245], [654, 328], [101, 586], [596, 627]]) {
+      sand.ellipse(x, y, 10, 5).fill({ color: 0xb9956d, alpha: 0.32 })
+        .moveTo(x - 7, y).quadraticCurveTo(x, y - 12, x + 7, y)
+        .stroke({ color: 0xf4d9a6, width: 2, alpha: 0.35 });
     }
   }
 
@@ -184,10 +243,34 @@ export class PixiRenderer {
   render(state: GameState, alpha: number): void {
     if (!this.initialized || this.disposed) return;
     const t = state.elapsed;
+    this.drawScenery(state.stage?.scene.course ?? 'lagoon');
+    const beach = state.stage?.scene.boss === 'beach' && state.stagePhase !== 'waves';
+    this.beach.alpha = beach ? state.stagePhase === 'boss-intro'
+      ? Math.min(1, state.bossIntroElapsed / GAME_CONFIG.boss.introDuration) : 1 : 0;
     this.world.position.set(state.view.offset.x, state.view.offset.y);
     this.world.scale.set(state.view.scale.x, state.view.scale.y);
     this.world.rotation = state.view.rotation;
+    this.fieldOverlay.clear();
+    this.screenFrame.clear();
+    if (state.gimmick.phase !== 'idle') {
+      const { amount, phase } = state.gimmick;
+      const f = state.field;
+      const shade = amount * 0.38;
+      if (shade > 0) {
+        this.fieldOverlay.rect(0, 0, 720, f.y).fill({ color: 0x071e28, alpha: shade })
+          .rect(0, f.y + f.height, 720, 720 - f.y - f.height).fill({ color: 0x071e28, alpha: shade })
+          .rect(0, f.y, f.x, f.height).fill({ color: 0x071e28, alpha: shade })
+          .rect(f.x + f.width, f.y, 720 - f.x - f.width, f.height).fill({ color: 0x071e28, alpha: shade });
+        this.fieldOverlay.rect(f.x, f.y, f.width, f.height)
+          .stroke({ color: 0xc6e2bc, width: 1.5, alpha: amount * 0.65 });
+      }
+      const edge = phase === 'warning' ? 0.35 + Math.sin(t * 12) * 0.2 : 0.55;
+      const x = state.view.offset.x, y = state.view.offset.y;
+      this.screenFrame.rect(x + 1, y + 1, 718 * state.view.scale.x, 718 * state.view.scale.y)
+        .stroke({ color: phase === 'warning' ? 0xffd9a1 : 0xb9e6d1, width: 2, alpha: edge });
+    }
     for (const bubble of this.bubbles) {
+      bubble.graphic.alpha = 1 - this.beach.alpha * 0.85;
       bubble.graphic.position.set(bubble.x + Math.sin(t * 0.3 + bubble.phase) * 8, (bubble.y - t * bubble.speed % 750 + 750) % 750 - 15);
     }
     const player = state.player;

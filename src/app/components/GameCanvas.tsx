@@ -34,8 +34,9 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsC
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState(false);
   const menu = useRef(menuOpen);
+  const menuDirection = useRef(0);
   const clearInputs = useRef(() => {});
-  useEffect(() => { menu.current = menuOpen; clearInputs.current(); }, [menuOpen, menuKey]);
+  useEffect(() => { menu.current = menuOpen; menuDirection.current = 0; clearInputs.current(); }, [menuOpen, menuKey]);
 
   useEffect(() => {
     if (!host.current) return;
@@ -46,7 +47,6 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsC
     const gamepad = new GamepadSystem();
     const records = new RecordStore(browserStorage());
     clearInputs.current = () => { input.clear(); gamepad.clear(); };
-    let menuDirection = 0;
     let lastControllerStatus = INITIAL_GAMEPAD_STATUS;
     const renderer = new PixiRenderer();
     let lastHudTime = -1;
@@ -75,18 +75,17 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsC
       },
       () => {
         const active = !document.hidden && document.hasFocus();
-        const actions = gamepad.poll(active);
+        const inMenu = menu.current || game.state.paused || game.state.gameOver || Boolean(game.state.result);
+        const actions = gamepad.poll(active, inMenu);
         if (actions.disconnected && !menu.current) setPaused(true);
         if (active) {
-          const inMenu = menu.current || game.state.paused || game.state.gameOver || Boolean(game.state.result);
           if (inMenu) {
-            const frame = gamepad.read();
-            const direction = Math.abs(frame.y) > 0.5 ? Math.sign(frame.y) : Math.abs(frame.x) > 0.5 ? Math.sign(frame.x) : 0;
-            if (direction && direction !== menuDirection) moveMenuFocus(direction);
+            const direction = gamepad.readMenuDirection();
+            if (direction && direction !== menuDirection.current) moveMenuFocus(direction);
             if (actions.backPressed) backMenu();
-            menuDirection = direction;
+            menuDirection.current = direction;
             if (actions.confirmPressed || actions.pausePressed) confirmMenu();
-          } else { menuDirection = 0; if (actions.pausePressed) controls.pause(); }
+          } else { menuDirection.current = 0; if (actions.pausePressed) controls.pause(); }
         }
         const status = gamepad.status;
         if (status.kind !== lastControllerStatus.kind || status.name !== lastControllerStatus.name || status.needsRelease !== lastControllerStatus.needsRelease) {

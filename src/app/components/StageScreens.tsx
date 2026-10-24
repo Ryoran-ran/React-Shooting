@@ -27,7 +27,7 @@ export function StageScreens({ screen, hud, records, storageAvailable, ready, on
     <span className="menu-help">↑↓ 選択 · Enter / Z / A・× 決定</span>
   </div>;
   if (screen === 'select') return <div className="screen-overlay select-screen" role="dialog" aria-label="ステージ選択">
-    <span className="eyebrow">CHOOSE YOUR CURRENT</span><h2>どこへ泳ごう。</h2><p>ひとつの海を、はじめから最後まで。</p>
+    <span className="eyebrow">CHOOSE YOUR CURRENT</span><h2>どこへ泳ごう。</h2><p>好きな海から、冒険をはじめよう。</p>
     <div className="stage-list">{STAGES.map((stage, index) => {
       const record = records.stages[stage.id];
       return <button data-menu className="stage-choice" key={stage.id} onClick={() => onStart(stage)}>
@@ -43,7 +43,7 @@ export function StageScreens({ screen, hud, records, storageAvailable, ready, on
   if (!hud.clearReady || !hud.result) return null;
   const result = hud.result;
   return <div className="screen-overlay result-screen" role="dialog" aria-label="リザルト">
-    <span className="eyebrow">STAGE 01 · SUNLIGHT LAGOON</span><h2>青の先に、届いた。</h2>
+    <span className="eyebrow">STAGE {hud.stageId.slice(-2)} · {hud.stageScene?.label}</span><h2>{hud.stageScene?.clear}</h2>
     <div className="result-rank"><span>RANK</span><strong>{result.rank}</strong><span>{result.hitsTaken === 0 ? 'NO MISS CLEAR' : 'STAGE CLEAR'}</span></div>
     <div className="result-score"><span>TOTAL SCORE</span><strong>{result.score.toLocaleString()}</strong></div>
     <dl className="result-breakdown"><div><dt>戦闘・回収スコア</dt><dd>{result.combatScore.toLocaleString()}</dd></div><div><dt>クリアボーナス</dt><dd>+{result.clearBonus.toLocaleString()}</dd></div><div><dt>残HP {result.hp} × 1,000</dt><dd>+{result.hpBonus.toLocaleString()}</dd></div><div><dt>ノーミス</dt><dd>+{result.noMissBonus.toLocaleString()}</dd></div><div><dt>TIME / 撃破数</dt><dd>{formatTime(result.elapsed)} / {result.defeatedCount}体</dd></div></dl>

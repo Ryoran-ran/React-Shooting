@@ -7,7 +7,7 @@ export function BossCue({ hud }: { hud: HudSnapshot }) {
     const opacity = Math.min(1, p * 6, (1 - p) * 6);
     return <div className="boss-cue arrival-cue" role="status" aria-label="ボス登場演出" style={{ opacity }}>
       <span className="cue-line" style={{ transform: `scaleX(${Math.min(1, p * 3)})` }} />
-      <span className="eyebrow">GUARDIAN APPROACHING</span><h2>ラグーンの守り手、接近。</h2>
+      <span className="eyebrow">GUARDIAN APPROACHING</span><h2>{hud.stageScene?.intro}</h2>
       <p>{hud.boss.name}</p><span className="cue-line" style={{ transform: `scaleX(${Math.min(1, p * 3)})` }} />
     </div>;
   }

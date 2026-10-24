@@ -114,6 +114,8 @@ kbd { display: inline-flex; align-items: center; justify-content: center; font: 
 .gimmick-row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
 .gimmick-row > span:last-child { font-size: 9px; letter-spacing: 1px; color: #9bb5ba; }
 .gimmick-row i { font-style: normal; color: #567882; margin-left: 7px; }
+.gimmick-row.warning > span:last-child, .gimmick-row.contracting > span:last-child { color: #e9d2a1; }
+.gimmick-row.active > span:last-child, .gimmick-row.recovering > span:last-child { color: #b2ddca; }
 .shot-card { border: 1px solid #4262587a; border-radius: 5px; background: #203f3e40; padding: 13px 13px 11px; margin-top: 23px; }
 .shot-card-label { display: flex; justify-content: space-between; align-items: center; }
 .shot-card-label .eyebrow { color: #8bad9b; font-size: 8px; }
@@ -218,15 +220,16 @@ kbd { display: inline-flex; align-items: center; justify-content: center; font: 
 .title-practice button:hover { color: #d1e9cc; }
 .menu-help { margin-top: auto; font-size: 9px; letter-spacing: .7px; color: #658e99; padding-top: 18px; }
 .select-screen > p { color: #83a6b0; font-size: 11px; letter-spacing: 1px; margin-top: 8px; }
-.stage-list { width: 100%; max-width: 600px; margin-top: 38px; }
-.stage-choice { display: flex; flex-direction: column; width: 100%; text-align: left; border: 1px solid #60928b88; border-radius: 7px; padding: 24px 26px; background: linear-gradient(135deg, #285a5b88, #133647); box-shadow: 0 12px 40px #00192355; }
+.stage-list { width: 100%; max-width: 600px; margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+.stage-choice { display: flex; flex-direction: column; width: 100%; text-align: left; border: 1px solid #60928b88; border-radius: 7px; padding: 16px 22px; background: linear-gradient(135deg, #285a5b88, #133647); box-shadow: 0 12px 40px #00192355; }
+.stage-choice:nth-child(2) { border-color: #b4aa8177; background: linear-gradient(135deg, #49665b99, #344b4a); }
 .stage-choice:hover { border-color: #a5d3ba; background: linear-gradient(135deg, #326d6588, #1a4050); }
 .stage-choice-top { display: flex; justify-content: space-between; color: #a3ccb9; font: 10px Consolas, monospace; letter-spacing: 1.5px; }
 .stage-choice-top > span:last-child { color: #d7d1a3; font-size: 9px; }
-.stage-choice > strong { color: #e3e9d6; font-size: 24px; font-weight: 400; margin: 25px 0 12px; letter-spacing: 1px; }
+.stage-choice > strong { color: #e3e9d6; font-size: 21px; font-weight: 400; margin: 10px 0 5px; letter-spacing: 1px; }
 .stage-description { font-size: 11px; color: #9dbec2; line-height: 1.8; }
-.stage-choice-stats { display: flex; justify-content: space-between; margin-top: 24px; font-size: 10px; color: #b1c7be; }
-.stage-choice-bottom { display: flex; justify-content: space-between; border-top: 1px solid #7ba29830; margin-top: 19px; padding-top: 17px; font: 9px Consolas, monospace; color: #789f9d; }
+.stage-choice-stats { display: flex; justify-content: space-between; margin-top: 10px; font-size: 10px; color: #b1c7be; }
+.stage-choice-bottom { display: flex; justify-content: space-between; border-top: 1px solid #7ba29830; margin-top: 9px; padding-top: 8px; font: 9px Consolas, monospace; color: #789f9d; }
 .stage-choice-bottom > span { font-family: 'Yu Gothic UI', sans-serif; font-size: 11px; color: #bad8c7; }
 .screen-overlay .record-note { color: #779da4; font-size: 10px; letter-spacing: .3px; margin: 22px 0 12px; line-height: 1.7; }
 .result-screen { padding-top: 35px; animation: result-reveal .45s ease-out both; }

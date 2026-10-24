@@ -2,7 +2,7 @@ import type { Vec2 } from '../core/coordinates';
 import type { WorldBody } from './types';
 
 export type EnemyKind = 'small' | 'medium' | 'turret' | 'rusher' | 'large' | 'boss';
-export type EnemyAppearance = 'jelly' | 'puffer' | 'anemone' | 'squid' | 'ray' | 'turtle';
+export type EnemyAppearance = 'jelly' | 'puffer' | 'anemone' | 'squid' | 'ray' | 'turtle' | 'hermit-crab';
 
 export type EnemyMotion =
   | { kind: 'linear'; vx: number; vy: number }
@@ -40,11 +40,13 @@ export interface EnemySpawn {
   kind: EnemyKind;
   position: Vec2;
   motion: EnemyMotion;
+  attacks?: EnemyAttack[];
   retireAfter?: number;
 }
 
 export interface Enemy extends WorldBody {
   kind: EnemyKind;
+  appearance?: EnemyAppearance;
   origin: Vec2;
   hp: number;
   maxHp: number;

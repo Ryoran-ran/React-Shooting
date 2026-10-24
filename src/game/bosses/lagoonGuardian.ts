@@ -1,9 +1,10 @@
 import type { Vec2 } from '../core/coordinates';
-import type { EnemyAttack } from '../entities/Enemy';
+import type { EnemyAppearance, EnemyAttack } from '../entities/Enemy';
 
 export interface BossDefinition {
   id: string;
   name: string;
+  appearance: EnemyAppearance;
   hp: number;
   hitRadius: number;
   spawn: Vec2;
@@ -14,7 +15,7 @@ export interface BossDefinition {
 }
 
 export const lagoonGuardian: BossDefinition = {
-  id: 'lagoon-guardian', name: 'ラグーンの守り手・アオウミガメ', hp: 280, hitRadius: 47,
+  id: 'lagoon-guardian', name: 'ラグーンの守り手・アオウミガメ', appearance: 'turtle', hp: 280, hitRadius: 47,
   spawn: { x: 360, y: -100 }, destination: { x: 360, y: 145 }, entrySpeed: 150, transitionDuration: 2.4,
   phases: [
     { hpRatio: 1, name: 'ゆらめく潮', amplitude: 110, frequency: 0.4, attacks: [
