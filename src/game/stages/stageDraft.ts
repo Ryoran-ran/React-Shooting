@@ -5,8 +5,12 @@ import { STAGES, type StageDefinition } from './stages';
 
 export type BeatKey = 'ki' | 'sho' | 'ten' | 'ketsu';
 export interface StageBeat { key: BeatKey; start: number; title: string; intent: string }
-export interface DraftSpawn extends EnemySpawn { editorId: string; groupId?: string }
-export interface FormationGroup { id: string; name: string; origin: Vec2 }
+export interface DraftSpawn extends EnemySpawn {
+  editorId: string;
+  groupId?: string;
+  routeGoal?: { position: Vec2; at: number };
+}
+export interface FormationGroup { id: string; name: string; origin: Vec2; originMode?: 'goal' }
 
 /** Only authored values live in the draft. Runtime definitions stay shared with the game. */
 export interface StageDraft {
@@ -50,7 +54,8 @@ export function compileStageDraft(draft: StageDraft): StageDefinition {
   return {
     ...base, name: draft.name, description: draft.description,
     combat: { ...base.combat, cycleDuration: Math.max(base.combat.cycleDuration, draft.bossAt + 1),
-      spawns: structuredClone(draft.spawns).sort((a, b) => a.time - b.time).map(({ editorId: _editorId, groupId: _groupId, ...spawn }) => spawn) },
+      spawns: structuredClone(draft.spawns).sort((a, b) => a.time - b.time)
+        .map(({ editorId: _editorId, groupId: _groupId, routeGoal: _routeGoal, ...spawn }) => spawn) },
     gimmicks: structuredClone(draft.gimmicks).sort((a, b) => a.at - b.at),
     progression: { ...base.progression, bossAt: draft.bossAt },
   };
@@ -100,13 +105,18 @@ function validSpawn(value: unknown, bossAt: number): value is EnemySpawn {
 function validDraftSpawn(value: unknown, bossAt: number): value is DraftSpawn {
   return validSpawn(value, bossAt) && object(value)
     && typeof value.editorId === 'string' && value.editorId.length > 0 && value.editorId.length <= 100
-    && (value.groupId === undefined || (typeof value.groupId === 'string' && value.groupId.length > 0 && value.groupId.length <= 100));
+    && (value.groupId === undefined || (typeof value.groupId === 'string' && value.groupId.length > 0 && value.groupId.length <= 100))
+    && (value.routeGoal === undefined || (object(value.routeGoal) && object(value.motion)
+      && ['linear', 'wave', 'zigzag'].includes(String(value.motion.kind))
+      && object(value.routeGoal.position) && number(value.routeGoal.position.x, 0, 720)
+      && number(value.routeGoal.position.y, 0, 720)
+      && number(value.routeGoal.at, (value.time as number) + .001, bossAt + 60)));
 }
 
 function validGroup(value: unknown): value is FormationGroup {
   return object(value) && typeof value.id === 'string' && value.id.length > 0 && value.id.length <= 100
     && typeof value.name === 'string' && value.name.trim().length > 0 && value.name.length <= 80
-    && point(value.origin);
+    && point(value.origin) && (value.originMode === undefined || value.originMode === 'goal');
 }
 
 function validGimmick(value: unknown, bossAt: number): value is GimmickEvent {

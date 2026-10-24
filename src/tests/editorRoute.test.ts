@@ -1,21 +1,35 @@
 import { expect, it } from 'vitest';
 import type { EnemySpawn } from '../game/entities/Enemy';
-import { moveRouteHandle, routePoints, routeTiming, snapRoutePoint } from '../app/editorRoute';
+import { getRouteGoal, moveRouteHandle, routePoints, routeTiming, setRouteGoal, setRouteSpawnTime, snapRoutePoint,
+  type EditableRouteSpawn } from '../app/editorRoute';
 
-function linear(): EnemySpawn {
+function linear(): EditableRouteSpawn {
   return { time: 12, kind: 'small', position: { x: -60, y: 300 },
     motion: { kind: 'linear', vx: 120, vy: 0 } };
 }
 
-it('moves the spawn independently and calculates velocity from the dragged arrow and time', () => {
+it('keeps the screen goal fixed while choosing an origin and derives speed from arrival time', () => {
   const spawn = linear();
+  expect(getRouteGoal(spawn, 3)).toEqual({ position: { x: 300, y: 300 }, at: 15 });
   moveRouteHandle(spawn, 'origin', { x: -40, y: 310 }, 3);
   expect(spawn.position).toEqual({ x: -40, y: 310 });
-  expect(spawn.motion).toMatchObject({ vx: 120, vy: 0 });
+  expect(spawn.routeGoal).toEqual({ position: { x: 300, y: 300 }, at: 15 });
+  expect(spawn.motion).toMatchObject({ vx: 113.333, vy: -3.333 });
   moveRouteHandle(spawn, 1, { x: 260, y: 460 }, 3);
   expect(spawn.motion).toMatchObject({ vx: 100, vy: 50 });
   expect(routePoints(spawn, 3)[1]).toEqual({ x: 260, y: 460 });
   expect(routeTiming(spawn, 3).arrivalAt).toBe(15);
+  setRouteGoal(spawn, { x: 260, y: 460 }, 18);
+  expect(spawn.motion).toMatchObject({ vx: 50, vy: 25 });
+  setRouteSpawnTime(spawn, 14, 3);
+  expect(spawn.routeGoal).toEqual({ position: { x: 260, y: 460 }, at: 18 });
+  expect(spawn.motion).toMatchObject({ vx: 75, vy: 37.5 });
+});
+
+it('chooses an in-field goal from legacy motion that would travel beyond the preview', () => {
+  const spawn = linear();
+  spawn.motion = { kind: 'linear', vx: 500, vy: 0 };
+  expect(getRouteGoal(spawn, 3)).toEqual({ position: { x: 720, y: 300 }, at: 13.56 });
 });
 
 it('calculates entry and exit stage times from a straight route', () => {

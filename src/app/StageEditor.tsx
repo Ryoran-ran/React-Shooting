@@ -9,9 +9,11 @@ import { compileStageDraft, createStageDraft, loadStageDraft, parseStageDraft, s
 import { GameCanvas, type GameControls } from './components/GameCanvas';
 import { EnemyPortrait } from './components/EnemyPortrait';
 import { FormationPreview } from './components/FormationPreview';
-import { moveRouteHandle, routePoints, routeTiming, snapRoutePoint, ROUTE_PREVIEW_SECONDS, ROUTE_VIEW_MAX, ROUTE_VIEW_MIN, type RouteHandle } from './editorRoute';
-import { arrangeGroup, createGroup, groupEnd, groupMembers, groupNearby, groupStart, moveGroup, moveMember,
-  planFormationLayout, removeEmptyGroups, shiftGroupTime, ungroup, type FormationPattern } from './editorGroups';
+import { getRouteGoal, moveRouteHandle, routePoints, routeTiming, setRouteGoal, setRouteOrigin, setRouteSpawnTime, shiftRouteTime,
+  snapRoutePoint, ROUTE_PREVIEW_SECONDS, ROUTE_VIEW_MAX, ROUTE_VIEW_MIN, type RouteHandle } from './editorRoute';
+import { arrangeGroup, createGroup, formationGoal, formationStartCenter, groupEnd, groupMembers, groupNearby, groupStart,
+  moveGroup, moveGroupStarts, moveMember, moveMemberStart, moveMemberRoute, planFormationLayout, removeEmptyGroups, shiftGroupTime, ungroup, upgradeFormationOrigins,
+  type FormationPattern } from './editorGroups';
 import './editor.css';
 
 const NO_RECORD_CHANGE = () => {};
@@ -43,16 +45,19 @@ function attackLabel(spawn: EnemySpawn): string {
 }
 
 interface EnemyRoutePreviewProps {
-  spawn: EnemySpawn;
+  spawn: DraftSpawn;
   companions: EnemySpawn[];
   seconds: number;
   gridSize: number;
-  onSecondsChange: (seconds: number) => void;
+  maxArrivalAt: number;
+  onArrivalAtChange: (at: number) => void;
   onMove: (handle: RouteHandle, point: { x: number; y: number }) => void;
 }
 
-function EnemyRoutePreview({ spawn, companions, seconds, gridSize, onSecondsChange, onMove }: EnemyRoutePreviewProps) {
+function EnemyRoutePreview({ spawn, companions, seconds, gridSize, maxArrivalAt, onArrivalAtChange, onMove }: EnemyRoutePreviewProps) {
   const drag = useRef<{ pointerId: number; handle: RouteHandle } | null>(null);
+  const [placeMode, setPlaceMode] = useState<'goal' | 'origin'>('goal');
+  const goal = getRouteGoal(spawn, seconds);
   const points = routePoints(spawn, seconds);
   const pointerPoint = (event: ReactPointerEvent<SVGSVGElement>) => {
     const matrix = event.currentTarget.getScreenCTM();
@@ -64,12 +69,14 @@ function EnemyRoutePreview({ spawn, companions, seconds, gridSize, onSecondsChan
   const startDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
     const attribute = (event.target as Element).getAttribute('data-route-handle');
-    const handle: RouteHandle = attribute && attribute !== 'origin' ? Number(attribute) : 'origin';
+    const handle: RouteHandle = attribute
+      ? attribute === 'origin' ? 'origin' : Number(attribute)
+      : goal && placeMode === 'goal' ? 1 : 'origin';
     const point = pointerPoint(event);
     if (!point) return;
     drag.current = { pointerId: event.pointerId, handle };
     event.currentTarget.setPointerCapture(event.pointerId);
-    if (attribute === null) onMove('origin', snapRoutePoint(point, gridSize));
+    if (attribute === null) onMove(handle, snapRoutePoint(point, gridSize));
     event.preventDefault();
   };
   const moveDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -83,8 +90,11 @@ function EnemyRoutePreview({ spawn, companions, seconds, gridSize, onSecondsChan
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
   return <div className="editor-route-preview">
-    <div className="editor-route-caption"><strong>出現位置と移動</strong><span>{gridSize ? `${gridSize}px マス` : '自由配置'}</span></div>
-    <svg viewBox="-100 -100 920 920" role="img" aria-label={`${ENEMY_DEFINITIONS[spawn.kind].name}の出現位置と移動経路。丸と矢印先をドラッグして編集できます`}
+    <div className="editor-route-caption"><strong>{goal ? 'ゴールから出現位置を決める' : '出現位置と移動'}</strong><span>{gridSize ? `${gridSize}px マス` : '自由配置'}</span></div>
+    {goal && <div className="editor-route-placement" role="group" aria-label="図をクリックしたときに置く点">
+      <button type="button" aria-pressed={placeMode === 'goal'} onClick={() => setPlaceMode('goal')}>① 画面内のゴール</button>
+      <button type="button" aria-pressed={placeMode === 'origin'} onClick={() => setPlaceMode('origin')}>② 出現位置</button></div>}
+    <svg viewBox="-100 -100 920 920" role="img" aria-label={`${ENEMY_DEFINITIONS[spawn.kind].name}の出現位置と移動経路。ゴールと出現位置をドラッグして編集できます`}
       onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={() => { drag.current = null; }}>
       <defs><marker id="editor-route-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
         <path d="M0 0 10 5 0 10Z" fill="#f6e7b7" /></marker>
@@ -98,17 +108,20 @@ function EnemyRoutePreview({ spawn, companions, seconds, gridSize, onSecondsChan
       {points.length > 1 && <polyline points={points.map((point) => `${point.x},${point.y}`).join(' ')} className="editor-route-line" markerEnd="url(#editor-route-arrow)" />}
       {points.slice(1).map((point, index) => <g key={index}>
         <circle cx={point.x} cy={point.y} r="24" className="editor-route-destination" />
+        {goal && index === 0 && <text x={point.x} y={point.y - 37} textAnchor="middle" className="editor-route-point-label">GOAL</text>}
         <circle cx={point.x} cy={point.y} r="45" className="editor-route-hit" data-route-handle={index + 1}>
-          <title>{spawn.motion.kind === 'path' ? `経路 ${index + 1}` : '矢印の先'}をドラッグ</title></circle>
+          <title>{spawn.motion.kind === 'path' ? `経路 ${index + 1}` : '到達地点'}をドラッグ</title></circle>
       </g>)}
       <circle cx={spawn.position.x} cy={spawn.position.y} r="23" className="editor-route-start" />
       <circle cx={spawn.position.x} cy={spawn.position.y} r="9" fill="#fff4d3" />
+      {goal && <text x={spawn.position.x} y={spawn.position.y - 37} textAnchor="middle" className="editor-route-point-label">START</text>}
       <circle cx={spawn.position.x} cy={spawn.position.y} r="45" className="editor-route-hit" data-route-handle="origin"><title>出現位置をドラッグ</title></circle>
     </svg>
-    {'vx' in spawn.motion && <label className="editor-route-seconds">矢印先までの時間 <input type="number" min="1" max="20" step="0.5" value={seconds}
-      onChange={(event) => { if (Number.isFinite(event.target.valueAsNumber)) onSecondsChange(Math.max(1, Math.min(20, event.target.valueAsNumber))); }} />秒</label>}
-    <p>● 出現位置をドラッグ　◆ 矢印先・経路点をドラッグ　○ 近い時間の敵<br />
-      {spawn.motion.kind === 'chase' ? '追尾方向はプレイヤーの位置で決まります。' : '空白をクリックして出現位置を置くこともできます。'}</p>
+    {goal && <label className="editor-route-seconds">ゴール到達 / ステージ <input type="number" min={spawn.time + .1} max={maxArrivalAt} step="0.1" value={goal.at}
+      onChange={(event) => { if (Number.isFinite(event.target.valueAsNumber)) onArrivalAtChange(event.target.valueAsNumber); }} />秒</label>}
+    <p>{goal ? '① ゴールを置く → ② 出現位置を置く。到達時刻から移動速度を計算します。' :
+      spawn.motion.kind === 'chase' ? '出現位置をドラッグ。追尾方向はプレイヤーの位置で決まります。' :
+      '出現位置と経路点をドラッグできます。空白をクリックすると出現位置を置きます。'}</p>
   </div>;
 }
 
@@ -158,10 +171,11 @@ interface FormationSettings {
   pattern: FormationPattern;
   spacing: number;
   columnWidth: number;
+  showPreview: boolean;
 }
 
 export function StageEditor() {
-  const [draft, setDraft] = useState<StageDraft>(() => loadStageDraft(STAGES[1].id) ?? createStageDraft(STAGES[1]));
+  const [draft, setDraft] = useState<StageDraft>(() => upgradeFormationOrigins(loadStageDraft(STAGES[1].id) ?? createStageDraft(STAGES[1])));
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState('敵・演出を調整して保存すると、ステージ選択にも反映されます。');
   const [tab, setTab] = useState<'story' | 'groups' | 'enemies' | 'gimmick'>('story');
@@ -170,7 +184,7 @@ export function StageEditor() {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [formationSettings, setFormationSettings] = useState<Record<string, FormationSettings>>({});
   const [gridSize, setGridSize] = useState(40);
-  const [routeSeconds, setRouteSeconds] = useState(ROUTE_PREVIEW_SECONDS);
+  const routeSeconds = ROUTE_PREVIEW_SECONDS;
   const [selectedGimmick, setSelectedGimmick] = useState<string | null>(null);
   const [previewStage, setPreviewStage] = useState<StageDefinition | null>(null);
   const [controls, setControls] = useState<GameControls | null>(null);
@@ -207,7 +221,7 @@ export function StageEditor() {
   const chooseStage = (id: string) => {
     if (dirty && !window.confirm('未保存の変更を破棄してステージを切り替えますか？')) return;
     const stage = STAGES.find((item) => item.id === id)!;
-    setDraft(loadStageDraft(id) ?? createStageDraft(stage));
+    setDraft(upgradeFormationOrigins(loadStageDraft(id) ?? createStageDraft(stage)));
     setSelectedSpawn(null); setSelectedEnemyIds([]); setSelectedGroup(null); setFormationSettings({}); setSelectedGimmick(null); setDirty(false);
     setMessage('編集するステージを切り替えました。');
   };
@@ -231,7 +245,7 @@ export function StageEditor() {
     try {
       const imported = parseStageDraft(JSON.parse(await file.text()) as unknown);
       if (dirty && !window.confirm('未保存の変更を破棄して読み込みますか？')) return;
-      setDraft(imported); setSelectedSpawn(null); setSelectedEnemyIds([]); setSelectedGroup(null); setFormationSettings({}); setSelectedGimmick(null); setDirty(true);
+      setDraft(upgradeFormationOrigins(imported)); setSelectedSpawn(null); setSelectedEnemyIds([]); setSelectedGroup(null); setFormationSettings({}); setSelectedGimmick(null); setDirty(true);
       setMessage('読み込みました。内容を確認して保存してください。');
     } catch (error) { setMessage(error instanceof Error ? error.message : '読み込めませんでした。'); }
   };
@@ -256,12 +270,14 @@ export function StageEditor() {
   const orderedGroups = [...draft.groups].sort((a, b) => groupStart(draft, a.id) - groupStart(draft, b.id));
   const currentGroup = draft.groups.find((group) => group.id === selectedGroup);
   const members = currentGroup ? groupMembers(draft, currentGroup.id) : [];
-  const defaultColumnWidth = members.length > 1
-    ? Math.max(gridSize || 40, Math.round((Math.max(...members.map((spawn) => spawn.position.x))
-      - Math.min(...members.map((spawn) => spawn.position.x))) / (gridSize || 1)) * (gridSize || 1))
+  const startCenter = formationStartCenter(members);
+  const goalXs = members.flatMap((spawn) => { const goal = formationGoal(spawn); return goal ? [goal.x] : []; });
+  const defaultColumnWidth = goalXs.length > 1
+    ? Math.max(gridSize || 40, Math.round((Math.max(...goalXs)
+      - Math.min(...goalXs)) / (gridSize || 1)) * (gridSize || 1))
     : gridSize || 40;
   const layoutSettings = currentGroup ? formationSettings[currentGroup.id] ?? {
-    pattern: 'two-columns' as const, spacing: gridSize || 40, columnWidth: defaultColumnWidth,
+    pattern: 'two-columns' as const, spacing: gridSize || 40, columnWidth: defaultColumnWidth, showPreview: true,
   } : null;
   const plannedLayout = currentGroup && layoutSettings
     ? planFormationLayout(currentGroup, members, layoutSettings.pattern, layoutSettings.spacing, layoutSettings.columnWidth, gridSize)
@@ -289,17 +305,19 @@ export function StageEditor() {
 
   const enemyInspector = <section id={tab === 'groups' ? 'editor-formation-enemy-settings' : undefined}
     className="editor-panel editor-inspector">{selected && inspectorSpawnIndex !== null ? <>
-        {tab === 'groups' && <div className="editor-member-switch"><span className="editor-kicker">編隊内の敵を設定</span>
-          <label>敵を選択<select value={selected.editorId} onChange={(event) => setSelectedSpawn(draft.spawns.findIndex((spawn) => spawn.editorId === event.target.value))}>
-            {members.map((spawn, index) => <option key={spawn.editorId} value={spawn.editorId}>{index + 1}. {ENEMY_DEFINITIONS[spawn.kind].name} · {spawn.time.toFixed(1)}秒</option>)}</select></label></div>}
+        {tab === 'groups' && <p className="editor-formation-detail-note">選択中の敵 · 数値と攻撃を細かく調整</p>}
         <div className="editor-panel-heading editor-inspector-heading"><div className={`editor-enemy-title editor-kind-${selected.kind}`}>
         <EnemyPortrait kind={selected.kind} /><div><span className="editor-kicker">ENEMY · <TimeMark time={selected.time} /></span>
           <h2>{ENEMY_DEFINITIONS[selected.kind].name}</h2><p>{entryLabel(selected)} · {motionNames[selected.motion.kind]} · {attackLabel(selected)}</p></div></div>
-        <div><button onClick={() => { const index = draft.spawns.length; change((next) => { const copy = structuredClone(next.spawns[inspectorSpawnIndex]); copy.editorId = crypto.randomUUID(); copy.time = Math.min(next.bossAt, copy.time + .5); next.spawns.push(copy); }); setSelectedSpawn(index); }}>複製</button>
+        <div><button onClick={() => { const index = draft.spawns.length; change((next) => { const copy = structuredClone(next.spawns[inspectorSpawnIndex]); copy.editorId = crypto.randomUUID(); shiftRouteTime(copy, Math.min(.5, next.bossAt - copy.time)); next.spawns.push(copy); }); setSelectedSpawn(index); }}>複製</button>
           <button className="editor-danger" onClick={() => { const id = selected.editorId; change((next) => { next.spawns.splice(inspectorSpawnIndex, 1); removeEmptyGroups(next); }); setSelectedSpawn(null); setSelectedEnemyIds((ids) => ids.filter((item) => item !== id)); }}>削除</button></div></div>
-        <div className="editor-enemy-summary"><EnemyRoutePreview spawn={selected} companions={draft.spawns.filter((spawn, index) => index !== inspectorSpawnIndex && Math.abs(spawn.time - selected.time) <= 1)}
-          seconds={routeSeconds} gridSize={gridSize} onSecondsChange={setRouteSeconds}
-          onMove={(handle, point) => updateSpawn(inspectorSpawnIndex, (spawn) => moveRouteHandle(spawn, handle, point, routeSeconds))} />
+        <div className={`editor-enemy-summary ${tab === 'groups' ? 'compact' : ''}`}>{tab !== 'groups' && <EnemyRoutePreview key={selected.editorId} spawn={selected} companions={draft.spawns.filter((spawn, index) => index !== inspectorSpawnIndex && Math.abs(spawn.time - selected.time) <= 1)}
+          seconds={routeSeconds} gridSize={gridSize} maxArrivalAt={draft.bossAt + 60}
+          onArrivalAtChange={(at) => updateSpawn(inspectorSpawnIndex, (spawn) => {
+            const goal = getRouteGoal(spawn, routeSeconds);
+            if (goal) setRouteGoal(spawn, goal.position, Math.min(at, draft.bossAt + 60));
+          })}
+          onMove={(handle, point) => updateSpawn(inspectorSpawnIndex, (spawn) => moveRouteHandle(spawn, handle, point, routeSeconds))} />}
           <div className="editor-summary-text"><span className="editor-kicker">AT A GLANCE</span><p><strong>種類</strong>{ENEMY_DEFINITIONS[selected.kind].name}</p>
             <p><strong>出現</strong><TimeMark time={selected.time} /> · {entryLabel(selected)}</p>
             <p><strong>移動</strong>{motionNames[selected.motion.kind]}</p><p><strong>攻撃</strong>{attackLabel(selected)}</p>
@@ -314,19 +332,32 @@ export function StageEditor() {
               '数値欄を変えると図と計算結果にも反映されます。'}
               {timing?.duration !== null && timing?.duration !== undefined && selected.retireAfter !== undefined && timing.duration > selected.retireAfter
                 ? ' 到達前に退場動作が始まります。' : ''}</small></div></div>
-        <div className="editor-fields"><NumberField label="出現 / 秒" value={selected.time} min={0} max={draft.bossAt} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => { spawn.time = value; })} />
+        <div className="editor-fields"><NumberField label="出現 / 秒" value={selected.time} min={0} max={draft.bossAt} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => setRouteSpawnTime(spawn, value, routeSeconds))} />
           <label>編隊<select value={selected.groupId ?? ''} onChange={(event) => change((next) => {
             const spawn = next.spawns[inspectorSpawnIndex]; spawn.groupId = event.target.value || undefined; removeEmptyGroups(next);
           })}><option value="">単独</option>{draft.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
           <label>種類<select value={selected.kind} onChange={(event) => updateSpawn(inspectorSpawnIndex, (spawn) => { spawn.kind = event.target.value as EnemySpawn['kind']; })}>
             {kinds.map((kind) => <option value={kind} key={kind}>{ENEMY_DEFINITIONS[kind].name}</option>)}</select></label>
-          <NumberField label="出現 X" value={selected.position.x} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => { spawn.position.x = value; })} />
-          <NumberField label="出現 Y" value={selected.position.y} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => { spawn.position.y = value; })} />
+          <NumberField label="出現 X" value={selected.position.x} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => setRouteOrigin(spawn, { x: value, y: spawn.position.y }, routeSeconds))} />
+          <NumberField label="出現 Y" value={selected.position.y} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => setRouteOrigin(spawn, { x: spawn.position.x, y: value }, routeSeconds))} />
+          {getRouteGoal(selected, routeSeconds) && <>
+            <NumberField label="画面内ゴール X" value={getRouteGoal(selected, routeSeconds)!.position.x} min={0} max={720}
+              onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => setRouteGoal(spawn,
+                { x: value, y: getRouteGoal(spawn, routeSeconds)!.position.y }, getRouteGoal(spawn, routeSeconds)!.at))} />
+            <NumberField label="画面内ゴール Y" value={getRouteGoal(selected, routeSeconds)!.position.y} min={0} max={720}
+              onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => setRouteGoal(spawn,
+                { x: getRouteGoal(spawn, routeSeconds)!.position.x, y: value }, getRouteGoal(spawn, routeSeconds)!.at))} />
+          </>}
           <NumberField label="退場まで / 秒（0は自動）" value={selected.retireAfter ?? 0} min={0} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => { spawn.retireAfter = value || undefined; })} /></div>
-        <h3>移動</h3><div className="editor-fields"><label>動き<select value={selected.motion.kind} onChange={(event) => updateSpawn(inspectorSpawnIndex, (spawn) => { spawn.motion = newMotion(event.target.value as EnemyMotion['kind']); })}>
+        <h3>移動</h3><div className="editor-fields"><label>動き<select value={selected.motion.kind} onChange={(event) => updateSpawn(inspectorSpawnIndex, (spawn) => {
+          const goal = getRouteGoal(spawn, routeSeconds);
+          spawn.motion = newMotion(event.target.value as EnemyMotion['kind']);
+          if ('vx' in spawn.motion && goal) setRouteGoal(spawn, goal.position, goal.at);
+          else delete spawn.routeGoal;
+        })}>
           {motionKinds.map((kind) => <option value={kind} key={kind}>{motionNames[kind]}</option>)}</select></label>
-          {('vx' in selected.motion) && <><NumberField label="速度 X" value={selected.motion.vx} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => { if ('vx' in spawn.motion) spawn.motion.vx = value; })} />
-            <NumberField label="速度 Y" value={selected.motion.vy} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => { if ('vy' in spawn.motion) spawn.motion.vy = value; })} /></>}
+          {('vx' in selected.motion) && <div className="editor-velocity-result"><span>逆算した速度</span>
+            <output>X {selected.motion.vx.toFixed(1)} / Y {selected.motion.vy.toFixed(1)} px/秒</output></div>}
           {('amplitude' in selected.motion) && <NumberField label="振幅" value={selected.motion.amplitude} min={0} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => { if ('amplitude' in spawn.motion) spawn.motion.amplitude = value; })} />}
           {selected.motion.kind === 'wave' && <NumberField label="周波数" value={selected.motion.frequency} min={0} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => { if (spawn.motion.kind === 'wave') spawn.motion.frequency = value; })} />}
           {selected.motion.kind === 'zigzag' && <NumberField label="周期" value={selected.motion.period} min={.1} onChange={(value) => updateSpawn(inspectorSpawnIndex, (spawn) => { if (spawn.motion.kind === 'zigzag') spawn.motion.period = value; })} />}
@@ -434,46 +465,80 @@ export function StageEditor() {
     {tab === 'groups' && currentGroup && <div className="editor-group-detail">
       <div className="editor-group-navigation"><button onClick={() => setSelectedGroup(null)}>← 編隊一覧</button>
         <span>編隊の中身</span><strong>{currentGroup.name} · {members.length}体</strong></div>
-      <div className="editor-content editor-group-layout"><section className="editor-panel editor-inspector">
-      <div className="editor-panel-heading"><div className="editor-group-title"><span className="editor-kicker">FORMATION · {members.length} ENEMIES</span><h2>{currentGroup.name}</h2></div>
-        <button className="editor-danger" onClick={() => { change((next) => ungroup(next, currentGroup.id)); setSelectedGroup(null); }}>編隊を解除</button></div>
-      <div className="editor-fields"><label>編隊名<input value={currentGroup.name} onChange={(event) => change((next) => { next.groups.find((group) => group.id === currentGroup.id)!.name = event.target.value; })} /></label>
-        <NumberField label="最初の出現 / 秒" value={groupStart(draft, currentGroup.id)} min={0} max={draft.bossAt - (groupEnd(draft, currentGroup.id) - groupStart(draft, currentGroup.id))}
-          onChange={(value) => change((next) => shiftGroupTime(next, currentGroup.id, value))} />
-        <NumberField label="編隊の基準 X" value={currentGroup.origin.x} onChange={(value) => change((next) => moveGroup(next, currentGroup.id, { x: value, y: currentGroup.origin.y }))} />
-        <NumberField label="編隊の基準 Y" value={currentGroup.origin.y} onChange={(value) => change((next) => moveGroup(next, currentGroup.id, { x: currentGroup.origin.x, y: value }))} /></div>
-      {layoutSettings && <div className="editor-formation-layout"><div className="editor-panel-heading"><h3>まとめて整列</h3>
-        <button className="editor-apply" onClick={() => change((next) => arrangeGroup(next, currentGroup.id,
-          layoutSettings.pattern, layoutSettings.spacing, layoutSettings.columnWidth, gridSize))}>この配置を適用</button></div>
-        <div className="editor-fields"><label className="editor-formation-pattern">並べ方<select value={layoutSettings.pattern}
-          onChange={(event) => updateLayoutSettings({ pattern: event.target.value as FormationPattern })}>
-          <option value="two-columns">左右２列</option><option value="row">横一列</option>
-          <option value="column">縦一列</option><option value="v">V字</option></select></label>
-          <NumberField label="敵の間隔 / px" value={layoutSettings.spacing} min={gridSize || 1} max={400} step={gridSize || 1}
-            onChange={(value) => updateLayoutSettings({ spacing: value })} />
-          {layoutSettings.pattern === 'two-columns' && <NumberField label="左右の幅 / px" value={layoutSettings.columnWidth}
-            min={gridSize || 1} max={1600} step={gridSize || 1} onChange={(value) => updateLayoutSettings({ columnWidth: value })} />}
-        </div><p>点線の輪で配置を確認してから適用できます。出現時刻・移動・攻撃は変わりません。</p></div>}
-      <FormationPreview group={currentGroup} members={members} gridSize={gridSize} selectedEnemyId={selected?.editorId}
-        previewPositions={plannedLayout?.positions}
-        onSelectEnemy={(id) => setSelectedSpawn(draft.spawns.findIndex((spawn) => spawn.editorId === id))}
-        onMove={(handle, point) => change((next) => { if (handle === 'group') moveGroup(next, currentGroup.id, point);
-          else moveMember(next, currentGroup.id, handle, point); })} />
-      <h3>編隊の敵</h3><div className="editor-formation-members">{members.map((spawn, index) => <div
-        className={`editor-formation-member ${selected?.editorId === spawn.editorId ? 'active' : ''}`} key={spawn.editorId}>
-        <div className="editor-formation-member-head"><span className={`editor-formation-index editor-kind-${spawn.kind}`}>{index + 1}</span>
-          <strong>{ENEMY_DEFINITIONS[spawn.kind].name}</strong><span>+{(spawn.time - groupStart(draft, currentGroup.id)).toFixed(1)}秒</span>
-          <button aria-pressed={selected?.editorId === spawn.editorId} onClick={() => {
-            setSelectedSpawn(draft.spawns.findIndex((item) => item.editorId === spawn.editorId));
-          }}>設定</button>
-          <button onClick={() => { change((next) => { const item = next.spawns.find((entry) => entry.editorId === spawn.editorId)!;
-            delete item.groupId; removeEmptyGroups(next); }); if (members.length === 1) setSelectedGroup(null); }}>外す</button></div>
-        <div className="editor-fields"><NumberField label="基準から X" value={Number((spawn.position.x - currentGroup.origin.x).toFixed(2))}
-          onChange={(value) => change((next) => moveMember(next, currentGroup.id, spawn.editorId, { x: currentGroup.origin.x + value, y: spawn.position.y }))} />
-          <NumberField label="基準から Y" value={Number((spawn.position.y - currentGroup.origin.y).toFixed(2))}
-            onChange={(value) => change((next) => moveMember(next, currentGroup.id, spawn.editorId, { x: spawn.position.x, y: currentGroup.origin.y + value }))} /></div>
-      </div>)}</div>
-    </section>{enemyInspector}</div></div>}
+      <div className="editor-formation-workspace"><section className="editor-panel editor-formation-board">
+        <div className="editor-panel-heading"><div className="editor-group-title"><span className="editor-kicker">FORMATION · {members.length} ENEMIES</span><h2>{currentGroup.name}</h2></div>
+          <button className="editor-danger" onClick={() => { change((next) => ungroup(next, currentGroup.id)); setSelectedGroup(null); }}>編隊を解除</button></div>
+        <p className="editor-formation-intro">図上の番号がゴール、Sがスタートです。それぞれ直接ドラッグできます。</p>
+        <div className="editor-formation-workbench">
+          <FormationPreview group={currentGroup} startCenter={startCenter}
+            members={members} gridSize={gridSize} selectedEnemyId={selected?.editorId}
+            previewPositions={layoutSettings?.showPreview ? plannedLayout?.positions : undefined}
+            showPreview={layoutSettings?.showPreview ?? true}
+            onShowPreviewChange={(showPreview) => updateLayoutSettings({ showPreview })}
+            onSelectEnemy={(id) => setSelectedSpawn(draft.spawns.findIndex((spawn) => spawn.editorId === id))}
+            onMove={(handle, point) => change((next) => { if (handle === 'group-goal') moveGroup(next, currentGroup.id, point, gridSize);
+              else if (handle === 'group-start') moveGroupStarts(next, currentGroup.id, point, gridSize);
+              else if (handle.startsWith('start:')) moveMemberStart(next, currentGroup.id, handle.slice(6), point);
+              else if (handle.startsWith('goal:')) moveMember(next, currentGroup.id, handle.slice(5), point);
+              else if (handle.startsWith('route:')) moveMemberRoute(next, currentGroup.id, handle.slice(6), point); })} />
+          <div className="editor-formation-sidebar">
+            <div className="editor-fields"><label>編隊名<input value={currentGroup.name} onChange={(event) => change((next) => { next.groups.find((group) => group.id === currentGroup.id)!.name = event.target.value; })} /></label>
+              <NumberField label="最初の出現 / 秒" value={groupStart(draft, currentGroup.id)} min={0} max={draft.bossAt - (groupEnd(draft, currentGroup.id) - groupStart(draft, currentGroup.id))}
+                onChange={(value) => change((next) => shiftGroupTime(next, currentGroup.id, value))} />
+              <NumberField label="ゴールの中心 X" value={currentGroup.origin.x} min={0} max={720} onChange={(value) => change((next) => moveGroup(next, currentGroup.id, { x: value, y: currentGroup.origin.y }))} />
+              <NumberField label="ゴールの中心 Y" value={currentGroup.origin.y} min={0} max={720} onChange={(value) => change((next) => moveGroup(next, currentGroup.id, { x: currentGroup.origin.x, y: value }))} />
+              <NumberField label="スタートの中心 X" value={startCenter.x} min={-200} max={920} onChange={(value) => change((next) => moveGroupStarts(next, currentGroup.id, { x: value, y: startCenter.y }))} />
+              <NumberField label="スタートの中心 Y" value={startCenter.y} min={-200} max={920} onChange={(value) => change((next) => moveGroupStarts(next, currentGroup.id, { x: startCenter.x, y: value }))} /></div>
+            {layoutSettings && <div className="editor-formation-layout"><div className="editor-panel-heading"><h3>ゴールをまとめて整列</h3>
+              <button className="editor-apply" onClick={() => change((next) => arrangeGroup(next, currentGroup.id,
+                layoutSettings.pattern, layoutSettings.spacing, layoutSettings.columnWidth, gridSize))}>この配置を適用</button></div>
+              <div className="editor-fields"><label className="editor-formation-pattern">並べ方<select value={layoutSettings.pattern}
+                onChange={(event) => updateLayoutSettings({ pattern: event.target.value as FormationPattern })}>
+                <option value="two-columns">左右２列</option><option value="row">横一列</option>
+                <option value="column">縦一列</option><option value="v">V字</option></select></label>
+                <NumberField label="ゴールの間隔 / px" value={layoutSettings.spacing} min={gridSize || 1} max={400} step={gridSize || 1}
+                  onChange={(value) => updateLayoutSettings({ spacing: value })} />
+                {layoutSettings.pattern === 'two-columns' && <NumberField label="左右の幅 / px" value={layoutSettings.columnWidth}
+                  min={gridSize || 1} max={720} step={gridSize || 1} onChange={(value) => updateLayoutSettings({ columnWidth: value })} />}
+              </div><p>{layoutSettings.showPreview ? '点線の番号が適用後のゴールです。' : '整列後の位置を非表示にしています。'}出現位置・出現時刻・攻撃を保ちます。</p>
+              {members.some((spawn) => !formationGoal(spawn)) && <p>追尾する敵はゴールを固定できないため、整列の対象外です。</p>}</div>}
+            {selected && <div className="editor-formation-focus"><h3>選択中の敵 · {ENEMY_DEFINITIONS[selected.kind].name}</h3>
+              <div className="editor-formation-point-fields"><h4>スタート（S）</h4><div className="editor-fields">
+                <NumberField label="スタート X" value={selected.position.x} min={-200} max={920}
+                  onChange={(value) => change((next) => moveMemberStart(next, currentGroup.id, selected.editorId,
+                    { x: value, y: next.spawns[inspectorSpawnIndex!].position.y }))} />
+                <NumberField label="スタート Y" value={selected.position.y} min={-200} max={920}
+                  onChange={(value) => change((next) => moveMemberStart(next, currentGroup.id, selected.editorId,
+                    { x: next.spawns[inspectorSpawnIndex!].position.x, y: value }))} /></div></div>
+              {formationGoal(selected) ? <div className="editor-formation-point-fields"><h4>ゴール（番号）</h4><div className="editor-fields">
+                <NumberField label="ゴール X" value={formationGoal(selected)!.x} min={0} max={720}
+                  onChange={(value) => change((next) => moveMember(next, currentGroup.id, selected.editorId,
+                    { x: value, y: formationGoal(next.spawns[inspectorSpawnIndex!])!.y }))} />
+                <NumberField label="ゴール Y" value={formationGoal(selected)!.y} min={0} max={720}
+                  onChange={(value) => change((next) => moveMember(next, currentGroup.id, selected.editorId,
+                    { x: formationGoal(next.spawns[inspectorSpawnIndex!])!.x, y: value }))} /></div></div>
+                : <p>追尾する敵には固定ゴールがありません。</p>}
+              {formationGoal(selected) && <div className="editor-formation-route-translate">
+                <h4>経路ごと移動</h4><p>スタートとゴールの距離・向き・到達時刻を保って動かします。</p>
+                <div className="editor-fields"><NumberField label="経路のスタート X" value={selected.position.x} min={-200} max={920}
+                  onChange={(value) => change((next) => moveMemberRoute(next, currentGroup.id, selected.editorId,
+                    { x: value, y: next.spawns[inspectorSpawnIndex!].position.y }))} />
+                  <NumberField label="経路のスタート Y" value={selected.position.y} min={-200} max={920}
+                    onChange={(value) => change((next) => moveMemberRoute(next, currentGroup.id, selected.editorId,
+                      { x: next.spawns[inspectorSpawnIndex!].position.x, y: value }))} /></div></div>}
+              <p>正確な位置は数値で調整できます。移動経路は図に反映されます。</p></div>}
+            <div className="editor-formation-roster"><h3>編隊の敵</h3><div className="editor-formation-members">{members.map((spawn, index) => {
+              const goal = formationGoal(spawn);
+              return <button type="button" className={`editor-formation-member ${selected?.editorId === spawn.editorId ? 'active' : ''}`}
+                key={spawn.editorId} aria-pressed={selected?.editorId === spawn.editorId}
+                onClick={() => setSelectedSpawn(draft.spawns.findIndex((item) => item.editorId === spawn.editorId))}>
+                <span className={`editor-formation-index editor-kind-${spawn.kind}`}>{index + 1}</span>
+                <span><strong>{ENEMY_DEFINITIONS[spawn.kind].name}</strong><small>{entryLabel(spawn)} → {goal ? `X ${Math.round(goal.x)} / Y ${Math.round(goal.y)}` : '追尾'}</small></span>
+                <time>{spawn.time.toFixed(1)}s</time></button>;
+            })}</div></div>
+          </div>
+        </div>
+      </section>{enemyInspector}</div></div>}
     {tab === 'enemies' && <div className="editor-content editor-enemy-layout"><section className="editor-panel"><div className="editor-panel-heading"><h2>敵の出現</h2><div>
       <button disabled={selectedEnemyIds.length < 2} onClick={makeGroup}>選択を編隊化 {selectedEnemyIds.length > 0 ? `(${selectedEnemyIds.length})` : ''}</button>
       <button onClick={() => {

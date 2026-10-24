@@ -3,11 +3,23 @@ import { Game } from '../game/core/Game';
 import { IDLE_INPUT } from '../game/systems/InputSystem';
 import { STAGES, stageTwo } from '../game/stages/stages';
 import { compileStageDraft, createStageDraft, getPlayableStages, loadStageDraft, parseStageDraft, saveStageDraft } from '../game/stages/stageDraft';
+import { setRouteGoal } from '../app/editorRoute';
 
 afterEach(() => vi.unstubAllGlobals());
 
 it('starts with valid drafts for every built-in stage', () => {
   for (const stage of STAGES) expect(parseStageDraft(createStageDraft(stage)).baseStageId).toBe(stage.id);
+});
+
+it('persists an authored screen goal but sends only the derived motion to the game', () => {
+  const draft = createStageDraft(stageTwo);
+  const spawn = draft.spawns[0];
+  setRouteGoal(spawn, { x: 360, y: 240 }, spawn.time + 4);
+  const parsed = parseStageDraft(JSON.parse(JSON.stringify(draft)));
+  expect(parsed.spawns[0].routeGoal).toEqual({ position: { x: 360, y: 240 }, at: spawn.time + 4 });
+  const playable = compileStageDraft(parsed).combat.spawns.find((item) => item.time === spawn.time)!;
+  expect(playable.motion).toEqual(spawn.motion);
+  expect(playable).not.toHaveProperty('routeGoal');
 });
 
 it('uses the edited timeline and gimmick in the real stage simulation without changing the source stage', () => {

@@ -5,6 +5,11 @@ export const ROUTE_VIEW_MIN = -100;
 export const ROUTE_VIEW_MAX = 820;
 export const ROUTE_PREVIEW_SECONDS = 3;
 
+export interface RouteGoal { position: Vec2; at: number }
+export type EditableRouteSpawn = EnemySpawn & { routeGoal?: RouteGoal };
+const round = (value: number) => Math.round(value * 1000) / 1000;
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
 export function snapRoutePoint(point: Vec2, gridSize: number): Vec2 {
   if (gridSize <= 0) return point;
   const min = Math.ceil(ROUTE_VIEW_MIN / gridSize) * gridSize;
@@ -15,25 +20,75 @@ export function snapRoutePoint(point: Vec2, gridSize: number): Vec2 {
 
 export type RouteHandle = 'origin' | number;
 
-export function routePoints(spawn: EnemySpawn, seconds: number): Vec2[] {
+/** Existing stages derive an initial goal from their velocity until the editor stores one. */
+export function getRouteGoal(spawn: EditableRouteSpawn, seconds: number): RouteGoal | null {
+  if (!('vx' in spawn.motion)) return null;
+  if (spawn.routeGoal) return spawn.routeGoal;
+  const crossing = fieldCrossing(spawn.position, { x: spawn.motion.vx, y: spawn.motion.vy });
+  const elapsed = crossing ? clamp(seconds, crossing.entry, crossing.exit) : seconds;
+  return { position: {
+    x: clamp(round(spawn.position.x + spawn.motion.vx * elapsed), 0, 720),
+    y: clamp(round(spawn.position.y + spawn.motion.vy * elapsed), 0, 720),
+  }, at: round(spawn.time + elapsed) };
+}
+
+export function setRouteGoal(spawn: EditableRouteSpawn, position: Vec2, requestedAt: number): void {
+  if (!('vx' in spawn.motion)) return;
+  const goal = { x: clamp(round(position.x), 0, 720), y: clamp(round(position.y), 0, 720) };
+  const dx = goal.x - spawn.position.x, dy = goal.y - spawn.position.y;
+  const minimumDuration = Math.max(.1, Math.abs(dx) / 1000, Math.abs(dy) / 1000);
+  const at = round(Math.max(requestedAt, spawn.time + minimumDuration));
+  const duration = at - spawn.time;
+  spawn.routeGoal = { position: goal, at };
+  spawn.motion.vx = clamp(round(dx / duration), -1000, 1000);
+  spawn.motion.vy = clamp(round(dy / duration), -1000, 1000);
+}
+
+export function setRouteOrigin(spawn: EditableRouteSpawn, position: Vec2, seconds: number): void {
+  const goal = getRouteGoal(spawn, seconds);
+  spawn.position = { ...position };
+  if (goal) setRouteGoal(spawn, goal.position, goal.at);
+}
+
+export function setRouteSpawnTime(spawn: EditableRouteSpawn, time: number, seconds: number): void {
+  const goal = getRouteGoal(spawn, seconds);
+  spawn.time = time;
+  if (goal) setRouteGoal(spawn, goal.position, goal.at);
+}
+
+export function shiftRouteTime(spawn: EditableRouteSpawn, delta: number): void {
+  spawn.time = round(spawn.time + delta);
+  if (spawn.routeGoal) spawn.routeGoal.at = round(spawn.routeGoal.at + delta);
+}
+
+/** Translate the whole route without changing its shape, speed or arrival time. */
+export function translateRoute(spawn: EditableRouteSpawn, offset: Vec2, seconds: number): void {
+  const goal = getRouteGoal(spawn, seconds);
+  const shift = (point: Vec2): Vec2 => ({ x: round(point.x + offset.x), y: round(point.y + offset.y) });
+  spawn.position = shift(spawn.position);
+  if (spawn.motion.kind === 'fixed') spawn.motion.destination = shift(spawn.motion.destination);
+  else if (spawn.motion.kind === 'path') spawn.motion.points = spawn.motion.points.map(shift);
+  else if (goal) spawn.routeGoal = { position: shift(goal.position), at: goal.at };
+}
+
+export function routePoints(spawn: EditableRouteSpawn, seconds: number): Vec2[] {
   const start = spawn.position;
   const motion = spawn.motion;
   if (motion.kind === 'path') return [start, ...motion.points];
   if (motion.kind === 'fixed') return [start, motion.destination];
-  if ('vx' in motion) return [start, { x: start.x + motion.vx * seconds, y: start.y + motion.vy * seconds }];
+  if ('vx' in motion) return [start, getRouteGoal(spawn, seconds)!.position];
   return [start];
 }
 
-/** The preview's arrow tip is the base-motion position after `seconds`, not a separate game target. */
-export function moveRouteHandle(spawn: EnemySpawn, handle: RouteHandle, point: Vec2, seconds: number): void {
+/** The goal stays fixed when the origin moves; speed is derived from both points and arrival time. */
+export function moveRouteHandle(spawn: EditableRouteSpawn, handle: RouteHandle, point: Vec2, seconds: number): void {
   if (handle === 'origin') {
-    spawn.position = { ...point };
+    setRouteOrigin(spawn, point, seconds);
     return;
   }
   const motion = spawn.motion;
   if ('vx' in motion) {
-    motion.vx = Math.round((point.x - spawn.position.x) / seconds * 10) / 10;
-    motion.vy = Math.round((point.y - spawn.position.y) / seconds * 10) / 10;
+    setRouteGoal(spawn, point, getRouteGoal(spawn, seconds)!.at);
   } else if (motion.kind === 'fixed' && handle === 1) {
     motion.destination = { ...point };
   } else if (motion.kind === 'path' && handle > 0 && handle <= motion.points.length) {
@@ -70,14 +125,16 @@ export interface RouteTiming {
   approximate: boolean;
 }
 
-export function routeTiming(spawn: EnemySpawn, seconds: number): RouteTiming {
+export function routeTiming(spawn: EditableRouteSpawn, seconds: number): RouteTiming {
   const motion = spawn.motion;
   if ('vx' in motion) {
     const speed = Math.hypot(motion.vx, motion.vy);
     const crossing = fieldCrossing(spawn.position, { x: motion.vx, y: motion.vy });
     const retirement = spawn.retireAfter ?? Infinity;
+    const goal = getRouteGoal(spawn, seconds)!;
     return {
-      speed, distance: speed * seconds, duration: seconds, arrivalAt: spawn.time + seconds,
+      speed, distance: Math.hypot(goal.position.x - spawn.position.x, goal.position.y - spawn.position.y),
+      duration: goal.at - spawn.time, arrivalAt: goal.at,
       fieldEntryAt: crossing && crossing.entry <= retirement ? spawn.time + crossing.entry : null,
       fieldExitAt: crossing && Number.isFinite(crossing.exit) && crossing.exit <= retirement ? spawn.time + crossing.exit : null,
       approximate: motion.kind !== 'linear',
