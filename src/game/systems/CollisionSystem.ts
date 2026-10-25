@@ -42,6 +42,10 @@ export function resolvePlayerShots(state: GameState): void {
     }
     if (!nearest) return true;
     if (nearest.invulnerable) return false;
+    state.effects.push({ id: `${shot.id}-impact`, kind: 'shot', variant: shot.mode,
+      position: { x: shot.previousPosition.x + (shot.position.x - shot.previousPosition.x) * nearestTime,
+        y: shot.previousPosition.y + (shot.position.y - shot.previousPosition.y) * nearestTime },
+      age: 0, lifetime: GAME_CONFIG.effects.shotLifetime });
     nearest.hp = Math.max(0, nearest.hp - shot.damage);
     nearest.hitFlash = GAME_CONFIG.combat.enemyHitFlash;
     return false;

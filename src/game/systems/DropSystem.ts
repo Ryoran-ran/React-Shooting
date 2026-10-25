@@ -15,7 +15,8 @@ export function resolveDefeats(state: GameState, nextId: () => string, random: (
     state.defeatedCount++;
     state.score += SCORE_CONFIG.enemies[enemy.kind];
     const definition = ENEMY_DEFINITIONS[enemy.kind];
-    state.effects.push({ id: nextId(), kind: 'burst', position: { ...enemy.position }, age: 0, lifetime: GAME_CONFIG.effects.burstLifetime });
+    state.effects.push({ id: nextId(), kind: 'burst', variant: enemy.kind,
+      position: { ...enemy.position }, age: 0, lifetime: GAME_CONFIG.effects.burstLifetime });
     state.eventMessage = `${definition.name}を撃破！`;
     state.eventUntil = state.elapsed + 2;
     if (random() < definition.dropRate) {

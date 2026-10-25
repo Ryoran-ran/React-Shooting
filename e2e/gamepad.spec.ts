@@ -84,6 +84,21 @@ test('controller menus navigate, confirm and return without carrying held button
   await expect(page.getByRole('dialog', { name: 'タイトル', exact: true })).toBeVisible();
 });
 
+test('controller selects the second stage from the stage selection screen', async ({ page }) => {
+  await installPad(page); await page.clock.install(); await page.goto('/');
+  await expect(page.getByRole('button', { name: '冒険をはじめる →' })).toBeEnabled();
+  await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 100);
+  await page.clock.runFor(100);
+  await setPad(page, { buttons: [0, 4] }); await page.clock.runFor(100);
+  await expect(page.getByRole('dialog', { name: 'ステージ選択' })).toBeVisible();
+  await setPad(page, { axes: [0, 1], buttons: [0, 4] }); await page.clock.runFor(100);
+  await expect(page.locator('.stage-choice').nth(1)).toBeFocused();
+  await setPad(page, { axes: [0, 0], buttons: [4] }); await page.clock.runFor(100);
+  await setPad(page, { buttons: [0, 4] }); await page.clock.runFor(100);
+  await expect(page.locator('.right-panel')).toContainText('ひかりの浅瀬');
+  await expect(page.locator('.telemetry')).toContainText('SHOTS FIRED 0000');
+});
+
 test('controller movement, fire, focus and Start work, including while paused', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));

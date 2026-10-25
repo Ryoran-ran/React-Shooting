@@ -15,7 +15,7 @@ export const GAME_CONFIG = {
   },
   combat: { cullMargin: 90, enemyBulletRadius: 4, enemyBulletVisualRadius: 6, enemyBulletLifetime: 10, contactDamage: 1, enemyHitFlash: 0.09 },
   heal: { maximum: 100, itemValue: 20, fallSpeed: 45, pickupRadius: 13, lifetime: 20, dropSpread: 22 },
-  effects: { burstLifetime: 0.5, hitLifetime: 0.35, healLifetime: 0.6, explosionLifetime: 0.45, explosionRadius: 38 },
+  effects: { burstLifetime: 0.64, hitLifetime: 0.48, shotLifetime: 0.18, healLifetime: 0.6, explosionLifetime: 0.45, explosionRadius: 38 },
   retreat: { speed: 200, acceleration: 360 },
   boss: { introDuration: 3.2, muzzleOffset: 60, vanishDuration: 2.1, clearCueDelay: 1.55, resultDelay: 4.8 },
   collection: { delay: 0.12, speed: 1050, acceleration: 650, radius: 12 },

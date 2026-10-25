@@ -17,6 +17,7 @@ export function updateStage(state: GameState, dt: number, nextId: () => string, 
     const enemy = createEnemy({ time: 0, kind: 'boss', position: definition.spawn,
       motion: { kind: 'fixed', destination: definition.destination, speed: definition.entrySpeed } }, nextId());
     enemy.hp = enemy.maxHp = definition.hp; enemy.hitRadius = definition.hitRadius;
+    enemy.appearance = definition.appearance;
     enemy.invulnerable = true;
     enemy.attacks = definition.phases[0].attacks;
     enemy.attackCooldowns = enemy.attacks.map((a) => a.firstShot);
@@ -27,7 +28,7 @@ export function updateStage(state: GameState, dt: number, nextId: () => string, 
     state.boss = { entityId: enemy.id, phaseIndex: 0, phaseElapsed: 0, transitionFor: 0, entering: true,
       pendingPhase: null, phaseStartedAt: 0, collectionTotal: 0, collectionValue: 0, collected: 0 };
     state.stagePhase = 'boss-intro';
-    state.eventMessage = '大きな影が近づいてきます。ラグーンの守り手、接近中。';
+    state.eventMessage = `大きな影が近づいてきます。${definition.name}、接近中。`;
     state.eventUntil = state.elapsed + 5;
   }
   const runtime = state.boss;

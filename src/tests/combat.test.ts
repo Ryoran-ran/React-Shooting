@@ -261,7 +261,24 @@ describe('enemy attacks and collision', () => {
     expect(near.hp).toBe(2);
     expect(far.hp).toBe(4);
     expect(state.bullets).toHaveLength(0);
+    expect(state.effects).toHaveLength(1);
+    expect(state.effects[0]).toMatchObject({ kind: 'shot', variant: 'straight', position: { x: 360 } });
+    expect(state.effects[0].position.y).toBeGreaterThan(200);
+    expect(state.effects[0].position.y).toBeLessThan(250);
     expect(sweptCircleTime({ x: 0, y: 0 }, { x: 100, y: 0 }, 1, { x: 50, y: 0 }, { x: 50, y: 0 }, 1)).toBeCloseTo(0.48);
+  });
+
+  it('handles a dense volley with one hit, consumes overlapping bullets, and keeps the world finite', () => {
+    const state = emptyGame().state;
+    for (let i = 0; i < 300; i++) {
+      hostile(state, state.player.position.x + (i % 5 - 2) * 2, state.player.position.y);
+    }
+    resolvePlayerDamage(state, nextId);
+    expect(state.player.hp).toBe(9);
+    expect(state.hitsTaken).toBe(1);
+    expect(state.enemyBullets).toHaveLength(0);
+    expect(state.effects.filter((effect) => effect.kind === 'hit')).toHaveLength(1);
+    expect(Number.isFinite(state.player.position.x + state.player.position.y)).toBe(true);
   });
 
   it('removes defeated targets from homing candidates and resolves kills only once', () => {

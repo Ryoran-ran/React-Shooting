@@ -29,6 +29,7 @@ export function stickDirection(x: number, y: number): { x: number; y: number } {
 export class GamepadSystem {
   status: GamepadStatus = INITIAL_GAMEPAD_STATUS;
   private frame: InputFrame = { ...IDLE_INPUT };
+  private menuDirection = 0;
   private selected: { index: number; id: string } | null = null;
   private needsRelease = true;
   private previousPause = false;
@@ -38,14 +39,16 @@ export class GamepadSystem {
   constructor(private readGamepads: GamepadReader = browserGamepads) {}
 
   read(): InputFrame { return this.frame; }
+  readMenuDirection(): number { return this.menuDirection; }
 
   clear(): void {
     this.frame = { ...IDLE_INPUT };
+    this.menuDirection = 0;
     this.needsRelease = true;
     // Keep edge history: a held Start button must never toggle pause repeatedly.
   }
 
-  poll(active = true): GamepadActions {
+  poll(active = true, inMenu = false): GamepadActions {
     const actions: GamepadActions = { pausePressed: false, confirmPressed: false, backPressed: false, disconnected: false };
     let pads: readonly (Gamepad | null)[] | null;
     try { pads = this.readGamepads(); } catch { pads = null; }
@@ -72,11 +75,14 @@ export class GamepadSystem {
     const stick = stickDirection(pad.axes[0] ?? 0, pad.axes[1] ?? 0);
     const dpad = [12, 13, 14, 15].some(pressed);
     const direction = dpad ? { x: Number(pressed(15)) - Number(pressed(14)), y: Number(pressed(13)) - Number(pressed(12)) } : stick;
+    this.menuDirection = Math.abs(direction.y) > 0.5 ? Math.sign(direction.y)
+      : Math.abs(direction.x) > 0.5 ? Math.sign(direction.x) : 0;
     const fire = pressed(GAME_CONFIG.gamepad.fire);
     const slow = GAME_CONFIG.gamepad.slow.some(pressed);
     const pause = pressed(GAME_CONFIG.gamepad.pause);
     const back = pressed(1);
-    const neutral = stick.x === 0 && stick.y === 0 && !dpad && !fire && !slow && !pause;
+    // Menus accept direction while a shoulder or stick is held. Confirm/Start still need a release edge.
+    const neutral = inMenu ? !fire && !pause : stick.x === 0 && stick.y === 0 && !dpad && !fire && !slow && !pause;
     if (!active) this.clear();
     else if (this.needsRelease) {
       this.frame = { ...IDLE_INPUT };

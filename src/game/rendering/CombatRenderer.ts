@@ -33,6 +33,30 @@ function drawCreature(appearance: EnemyAppearance): Graphics {
       }
       g.moveTo(-5, 67).quadraticCurveTo(0, 70, 5, 67).stroke({ color: 0x568d84, width: 1.4 });
       return g;
+    case 'hermit-crab':
+      // A striped shell, paired claws and walking legs keep the beach guardian distinct from the turtle.
+      g.ellipse(0, 10, 92, 66).fill({ color: 0xffdba7, alpha: 0.04 });
+      for (const side of [-1, 1]) {
+        g.moveTo(side * 28, 10).quadraticCurveTo(side * 70, 6, side * 82, -20)
+          .quadraticCurveTo(side * 77, -39, side * 58, -34).quadraticCurveTo(side * 55, -15, side * 65, -14)
+          .quadraticCurveTo(side * 48, 3, side * 30, 20).fill(0xd68d72);
+        g.ellipse(side * 69, -25, 17, 15).fill(0xf4b18c);
+        g.moveTo(side * 34, 33).quadraticCurveTo(side * 52, 54, side * 67, 56)
+          .moveTo(side * 23, 40).quadraticCurveTo(side * 36, 62, side * 47, 69)
+          .stroke({ color: 0xcc866e, width: 8 });
+      }
+      g.ellipse(0, 5, 43, 48).fill(0xbb826a)
+        .ellipse(0, -2, 38, 42).fill(0xe8be8c)
+        .moveTo(-30, -23).quadraticCurveTo(0, -47, 30, -23).stroke({ color: 0xffe0ae, width: 5 })
+        .moveTo(-34, -8).quadraticCurveTo(0, -28, 34, -8).stroke({ color: 0xc99272, width: 5 })
+        .moveTo(-30, 11).quadraticCurveTo(0, -4, 30, 11).stroke({ color: 0xffddb1, width: 5 })
+        .moveTo(-20, 29).quadraticCurveTo(0, 17, 20, 29).stroke({ color: 0xc99272, width: 4 });
+      for (const side of [-1, 1]) {
+        g.moveTo(side * 13, 37).quadraticCurveTo(side * 18, 52, side * 15, 57)
+          .stroke({ color: 0xd98571, width: 6 });
+        g.circle(side * 15, 57, 5).fill(0xf1aa83).circle(side * 15, 57, 2.5).fill(0x294755);
+      }
+      return g;
     case 'jelly':
       for (let i = 0; i < 4; i++) {
         const x = -10 + i * 7;
@@ -114,7 +138,7 @@ export class CombatRenderer {
     const halo = new Graphics().circle(0, 0, definition.visualRadius + 10).fill({ color: 0xdcaabf, alpha: 0.035 });
     const flash = new Graphics().circle(0, 0, definition.hitRadius).fill({ color: 0xfff5dd, alpha: 0.45 });
     const health = new Graphics();
-    body.addChild(halo, drawCreature(definition.appearance), flash);
+    body.addChild(halo, drawCreature(enemy.appearance ?? definition.appearance), flash);
     root.addChild(body, health);
     this.enemyLayer.addChild(root);
     return { root, body, health, flash };
@@ -252,11 +276,53 @@ export class CombatRenderer {
       let v = this.effects.get(effect.id);
       if (!v) { v = new Graphics(); this.effectLayer.addChild(v); this.effects.set(effect.id, v); }
       const progress = effect.age / effect.lifetime;
+      v.position.set(effect.position.x, effect.position.y);
+      v.alpha = 1 - progress;
+      v.clear();
+      if (effect.kind === 'shot') {
+        const color = effect.variant === 'homing' ? 0xffdfa4 : 0xa6f7dc;
+        v.circle(0, 0, 3 + progress * 13).stroke({ color, width: 2 * (1 - progress) + 0.5 })
+          .circle(0, 0, 4 * (1 - progress)).fill({ color: 0xffffff, alpha: 0.75 });
+        for (let i = 0; i < 4; i++) {
+          const angle = i * Math.PI / 2;
+          const inner = 5 + progress * 7, outer = inner + 8 * (1 - progress);
+          v.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner)
+            .lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer)
+            .stroke({ color, width: 1.6 });
+        }
+        continue;
+      }
+      if (effect.kind === 'hit') {
+        v.circle(0, 0, 12 + progress * 37).stroke({ color: 0xc8f7ef, width: 3 - progress * 2, alpha: 0.9 })
+          .circle(0, 0, 14 * (1 - progress)).fill({ color: 0xffeed6, alpha: 0.3 });
+        for (let i = 0; i < 12; i++) {
+          const angle = i / 12 * Math.PI * 2;
+          const distance = 10 + progress * (32 + i % 3 * 9);
+          const x = Math.cos(angle) * distance, y = Math.sin(angle) * distance * 0.72;
+          v.circle(x, y, (i % 3 === 0 ? 4 : 2.5) * (1 - progress))
+            .fill(i % 3 === 0 ? 0xffe7d4 : 0xb6f2eb);
+        }
+        continue;
+      }
+      if (effect.kind === 'burst') {
+        const color = effect.variant === 'small' ? 0xe9bfdc : effect.variant === 'medium' ? 0xf1d29b
+          : effect.variant === 'turret' ? 0xe5b2bf : effect.variant === 'rusher' ? 0xcac0f2 : 0xb2d5f1;
+        const size = effect.variant === 'large' ? 68 : effect.variant === 'medium' || effect.variant === 'turret' ? 45 : 35;
+        v.circle(0, 0, 7 + progress * size).stroke({ color, width: 2.5 - progress * 1.5 })
+          .circle(0, 0, 16 * (1 - progress)).fill({ color, alpha: 0.22 });
+        for (let i = 0; i < 10; i++) {
+          const angle = i / 10 * Math.PI * 2 + i * 0.2;
+          const distance = 7 + progress * (size * (0.7 + i % 3 * 0.15));
+          const x = Math.cos(angle) * distance, y = Math.sin(angle) * distance;
+          const shard = (i % 3 === 0 ? 6 : 4) * (1 - progress);
+          v.poly([x, y - shard, x + shard * 0.55, y + shard * 0.5, x - shard * 0.55, y + shard * 0.5]).fill(color);
+        }
+        continue;
+      }
       const explosion = effect.kind === 'explosion';
       const phase = effect.kind === 'phase';
-      const color = phase ? 0xffe6a4 : explosion ? 0xffc580 : effect.kind === 'hit' ? 0xffd5c1 : effect.kind === 'heal' ? 0xb8f4b6 : 0xe4c5e2;
-      v.position.set(effect.position.x, effect.position.y); v.alpha = 1 - progress;
-      v.clear().circle(0, 0, 8 + progress * (phase ? 160 : explosion ? GAME_CONFIG.effects.explosionRadius : 32)).stroke({ color, width: phase || explosion ? 2.5 : 1.6 });
+      const color = phase ? 0xffe6a4 : explosion ? 0xffc580 : 0xb8f4b6;
+      v.circle(0, 0, 8 + progress * (phase ? 160 : explosion ? GAME_CONFIG.effects.explosionRadius : 32)).stroke({ color, width: phase || explosion ? 2.5 : 1.6 });
       if (explosion) v.circle(0, 0, 14 * (1 - progress)).fill({ color: 0xfff0ce, alpha: 0.8 });
       const particles = explosion ? 10 : 7;
       for (let i = 0; i < particles; i++) {

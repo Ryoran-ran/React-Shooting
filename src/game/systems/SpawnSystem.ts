@@ -11,7 +11,8 @@ export function createEnemy(spawn: EnemySpawn, id: string): Enemy {
     hp: definition.hp, maxHp: definition.hp, hitRadius: definition.hitRadius, hitFlash: 0,
     motion: structuredClone(spawn.motion), retireAfter: spawn.retireAfter,
     pathIndex: 0, entered: false, retired: false, retreat: null,
-    attackCooldowns: definition.attacks.map((attack) => attack.firstShot),
+    attacks: spawn.attacks ? structuredClone(spawn.attacks) : undefined,
+    attackCooldowns: (spawn.attacks ?? definition.attacks).map((attack) => attack.firstShot),
   };
 }
 

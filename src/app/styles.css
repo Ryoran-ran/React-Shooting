@@ -75,6 +75,17 @@ h1, h2, h3, p { margin: 0; }
 .status-box.damaged { border-color: #d9958a70; }
 .status-box.damaged > span:last-child { color: #edb7a6; }
 .status-box.damaged i { background: #edb7a6; }
+.info-panel[data-state="hit"] .status-box { background: #74474966; box-shadow: 0 0 22px #ecb6a229; }
+.info-panel[data-state="hit"] .hp-segments span:not(.empty) { background: #f2c0a9; }
+.info-panel[data-state="down"] .status-box { background: #69465355; border-color: #d3999a7d; }
+.info-panel[data-state="clear"] .status-box { background: #5b573466; border-color: #cfcb8c77; }
+.info-panel[data-state="clear"] .status-box > span:last-child { color: #eee2aa; }
+.info-panel[data-state="clear"] .status-box i { background: #eee2aa; }
+.info-panel[data-state="arrival"] .free-swim, .info-panel[data-state="boss"] .free-swim { color: #e1bdbd; }
+.info-panel[data-state="arrival"] .free-swim .live-dot, .info-panel[data-state="boss"] .free-swim .live-dot { background: #e3b0b8; box-shadow: 0 0 10px #edb4b477; }
+.info-panel[data-state="boss"] .stage-progress > span { background: #d6a9b3; }
+.info-panel[data-state="clear"] .free-swim { color: #e9dfab; }
+.info-panel[data-state="clear"] .stage-progress > span { background: #d8d09b; }
 .best-score { display: flex; align-items: center; justify-content: space-between; margin-top: 17px; }
 .best-score > span:last-child { color: #6b8a96; font-size: 16px; }
 .controls-guide { margin-top: auto; padding-top: 20px; }
@@ -103,6 +114,8 @@ kbd { display: inline-flex; align-items: center; justify-content: center; font: 
 .gimmick-row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
 .gimmick-row > span:last-child { font-size: 9px; letter-spacing: 1px; color: #9bb5ba; }
 .gimmick-row i { font-style: normal; color: #567882; margin-left: 7px; }
+.gimmick-row.warning > span:last-child, .gimmick-row.contracting > span:last-child { color: #e9d2a1; }
+.gimmick-row.active > span:last-child, .gimmick-row.recovering > span:last-child { color: #b2ddca; }
 .shot-card { border: 1px solid #4262587a; border-radius: 5px; background: #203f3e40; padding: 13px 13px 11px; margin-top: 23px; }
 .shot-card-label { display: flex; justify-content: space-between; align-items: center; }
 .shot-card-label .eyebrow { color: #8bad9b; font-size: 8px; }
@@ -138,6 +151,9 @@ kbd { display: inline-flex; align-items: center; justify-content: center; font: 
 .panel-bottom-note { display: flex; align-items: center; gap: 7px; border-top: 1px solid #42606a45; margin-top: 14px; padding-top: 13px; font-size: 7px; letter-spacing: 1.8px; color: #668e91; }
 .panel-bottom-note .live-dot { width: 3px; height: 3px; background: #699c8e; }
 .play-field { position: relative; width: 720px; height: 720px; background: #092c3c; overflow: hidden; }
+.play-field.hit-state::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 7; box-shadow: inset 0 0 105px 30px #f5c9b05e; animation: field-hit .3s ease-out both; }
+@keyframes field-hit { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .play-field.hit-state::after { animation: none; opacity: .45; } }
 .canvas-host, .canvas-host canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
 .field-top, .field-bottom { position: absolute; left: 24px; right: 24px; display: flex; align-items: center; justify-content: space-between; pointer-events: none; z-index: 2; }
 .field-top { top: 25px; font-size: 8px; letter-spacing: 2px; color: #75a7ae; }
@@ -204,15 +220,16 @@ kbd { display: inline-flex; align-items: center; justify-content: center; font: 
 .title-practice button:hover { color: #d1e9cc; }
 .menu-help { margin-top: auto; font-size: 9px; letter-spacing: .7px; color: #658e99; padding-top: 18px; }
 .select-screen > p { color: #83a6b0; font-size: 11px; letter-spacing: 1px; margin-top: 8px; }
-.stage-list { width: 100%; max-width: 600px; margin-top: 38px; }
-.stage-choice { display: flex; flex-direction: column; width: 100%; text-align: left; border: 1px solid #60928b88; border-radius: 7px; padding: 24px 26px; background: linear-gradient(135deg, #285a5b88, #133647); box-shadow: 0 12px 40px #00192355; }
+.stage-list { width: 100%; max-width: 600px; margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+.stage-choice { display: flex; flex-direction: column; width: 100%; text-align: left; border: 1px solid #60928b88; border-radius: 7px; padding: 16px 22px; background: linear-gradient(135deg, #285a5b88, #133647); box-shadow: 0 12px 40px #00192355; }
+.stage-choice:nth-child(2) { border-color: #b4aa8177; background: linear-gradient(135deg, #49665b99, #344b4a); }
 .stage-choice:hover { border-color: #a5d3ba; background: linear-gradient(135deg, #326d6588, #1a4050); }
 .stage-choice-top { display: flex; justify-content: space-between; color: #a3ccb9; font: 10px Consolas, monospace; letter-spacing: 1.5px; }
 .stage-choice-top > span:last-child { color: #d7d1a3; font-size: 9px; }
-.stage-choice > strong { color: #e3e9d6; font-size: 24px; font-weight: 400; margin: 25px 0 12px; letter-spacing: 1px; }
+.stage-choice > strong { color: #e3e9d6; font-size: 21px; font-weight: 400; margin: 10px 0 5px; letter-spacing: 1px; }
 .stage-description { font-size: 11px; color: #9dbec2; line-height: 1.8; }
-.stage-choice-stats { display: flex; justify-content: space-between; margin-top: 24px; font-size: 10px; color: #b1c7be; }
-.stage-choice-bottom { display: flex; justify-content: space-between; border-top: 1px solid #7ba29830; margin-top: 19px; padding-top: 17px; font: 9px Consolas, monospace; color: #789f9d; }
+.stage-choice-stats { display: flex; justify-content: space-between; margin-top: 10px; font-size: 10px; color: #b1c7be; }
+.stage-choice-bottom { display: flex; justify-content: space-between; border-top: 1px solid #7ba29830; margin-top: 9px; padding-top: 8px; font: 9px Consolas, monospace; color: #789f9d; }
 .stage-choice-bottom > span { font-family: 'Yu Gothic UI', sans-serif; font-size: 11px; color: #bad8c7; }
 .screen-overlay .record-note { color: #779da4; font-size: 10px; letter-spacing: .3px; margin: 22px 0 12px; line-height: 1.7; }
 .result-screen { padding-top: 35px; animation: result-reveal .45s ease-out both; }

@@ -28,14 +28,16 @@ interface Props {
   onRecordsChange: (data: SaveData, available: boolean) => void;
   menuOpen: boolean;
   menuKey: string;
+  recordRuns?: boolean;
 }
 
-export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsChange, menuOpen, menuKey }: Props) {
+export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsChange, menuOpen, menuKey, recordRuns = true }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState(false);
   const menu = useRef(menuOpen);
+  const menuDirection = useRef(0);
   const clearInputs = useRef(() => {});
-  useEffect(() => { menu.current = menuOpen; clearInputs.current(); }, [menuOpen, menuKey]);
+  useEffect(() => { menu.current = menuOpen; menuDirection.current = 0; clearInputs.current(); }, [menuOpen, menuKey]);
 
   useEffect(() => {
     if (!host.current) return;
@@ -46,7 +48,6 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsC
     const gamepad = new GamepadSystem();
     const records = new RecordStore(browserStorage());
     clearInputs.current = () => { input.clear(); gamepad.clear(); };
-    let menuDirection = 0;
     let lastControllerStatus = INITIAL_GAMEPAD_STATUS;
     const renderer = new PixiRenderer();
     let lastHudTime = -1;
@@ -56,7 +57,7 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsC
     const publish = () => {
       const snapshot = getHudSnapshot(game.state);
       lastHudKey = `${snapshot.gameOver}-${snapshot.gameOverReady}-${snapshot.clearCueReady}-${snapshot.clearReady}-${snapshot.stagePhase}-${snapshot.boss?.phase}`;
-      if (snapshot.result && snapshot.runId !== savedRun) {
+      if (recordRuns && snapshot.result && snapshot.runId !== savedRun) {
         savedRun = snapshot.runId; records.clear(snapshot.runId, snapshot.result); publishRecords();
       }
       onSnapshot(snapshot);
@@ -75,18 +76,17 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsC
       },
       () => {
         const active = !document.hidden && document.hasFocus();
-        const actions = gamepad.poll(active);
+        const inMenu = menu.current || game.state.paused || game.state.gameOver || Boolean(game.state.result);
+        const actions = gamepad.poll(active, inMenu);
         if (actions.disconnected && !menu.current) setPaused(true);
         if (active) {
-          const inMenu = menu.current || game.state.paused || game.state.gameOver || Boolean(game.state.result);
           if (inMenu) {
-            const frame = gamepad.read();
-            const direction = Math.abs(frame.y) > 0.5 ? Math.sign(frame.y) : Math.abs(frame.x) > 0.5 ? Math.sign(frame.x) : 0;
-            if (direction && direction !== menuDirection) moveMenuFocus(direction);
+            const direction = gamepad.readMenuDirection();
+            if (direction && direction !== menuDirection.current) moveMenuFocus(direction);
             if (actions.backPressed) backMenu();
-            menuDirection = direction;
+            menuDirection.current = direction;
             if (actions.confirmPressed || actions.pausePressed) confirmMenu();
-          } else { menuDirection = 0; if (actions.pausePressed) controls.pause(); }
+          } else { menuDirection.current = 0; if (actions.pausePressed) controls.pause(); }
         }
         const status = gamepad.status;
         if (status.kind !== lastControllerStatus.kind || status.name !== lastControllerStatus.name || status.needsRelease !== lastControllerStatus.needsRelease) {
@@ -103,7 +103,7 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsC
       resume: () => setPaused(false),
       reset: () => {
         input.clear(); gamepad.clear(); game.reset(); lastHudTime = -1; loop.resetClock(); publish();
-        if (game.state.stage) { records.start(game.state.stage.id); publishRecords(); }
+        if (recordRuns && game.state.stage) { records.start(game.state.stage.id); publishRecords(); }
       },
       targets: (enabled) => { game.setTargetsEnabled(enabled); publish(); },
       motion: (enabled) => { game.setTargetsMoving(enabled); publish(); },
@@ -111,7 +111,8 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsC
       enemyAttacks: (enabled) => { game.setEnemyAttacksEnabled(enabled); publish(); },
       startStage: (stage) => {
         input.clear(); gamepad.clear(); game.startStage(stage); lastHudTime = -1; loop.resetClock();
-        records.start(stage.id); publishRecords(); publish();
+        if (recordRuns) { records.start(stage.id); publishRecords(); }
+        publish();
       },
     };
 
@@ -128,7 +129,7 @@ export function GameCanvas({ onSnapshot, onReady, onControllerChange, onRecordsC
     return () => {
       cancelled = true; detachInput?.(); gamepad.clear(); loop.stop(); renderer.destroy(); onReady(null); onControllerChange(INITIAL_GAMEPAD_STATUS);
     };
-  }, [onSnapshot, onReady, onControllerChange, onRecordsChange]);
+  }, [onSnapshot, onReady, onControllerChange, onRecordsChange, recordRuns]);
 
   return <div className="canvas-host" ref={host}>
     {error && <div className="canvas-error" role="alert">

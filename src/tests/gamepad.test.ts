@@ -94,6 +94,26 @@ describe('gamepad movement and actions', () => {
     expect(input.read()).toEqual(IDLE_INPUT);
   });
 
+  it('moves a menu after a screen change even with a held stick or shoulder, without carrying confirm into play', () => {
+    const { input, set } = setup();
+    set([pad({ buttons: buttons([0, 4]) })]);
+    expect(input.poll(true, true).confirmPressed).toBe(true);
+    input.clear(); // Opening stage selection while L is still held.
+    set([pad({ axes: [0, 1], buttons: buttons([0, 4, 13]) })]);
+    expect(input.poll(true, true).confirmPressed).toBe(false);
+    expect(input.readMenuDirection()).toBe(1);
+    expect(input.status.needsRelease).toBe(true);
+    set([pad({ axes: [0, 1], buttons: buttons([4, 13]) })]);
+    input.poll(true, true);
+    expect(input.status.needsRelease).toBe(false);
+    set([pad({ axes: [0, 1], buttons: buttons([0, 4, 13]) })]);
+    expect(input.poll(true, true).confirmPressed).toBe(true);
+    input.clear(); // Launching a stage must still wait for neutral before gameplay input.
+    input.poll(true, false);
+    expect(input.read()).toEqual(IDLE_INPUT);
+    expect(input.status.needsRelease).toBe(true);
+  });
+
   it('reads a pad in a sparse slot and reports disconnect exactly once', () => {
     const { input, set } = setup(pad({ index: 2 }));
     set([null, null, pad({ index: 2, axes: [-1, 0] })]); input.poll();
